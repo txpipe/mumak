@@ -2,11 +2,9 @@
 
 A custom PostgreSQL extension to interact with Cardano CBOR data directly.
 
-What if postgresql knew how to “talk” cardano?
-
 ## Introduction
 
-The natural wire format used to exchange Cardano data is CBOR. By Cardano data we refer to Blocks, Transactions, UTxOs, Certificates and all of its inner structures.
+The defacto wire format used to exchange Cardano data is CBOR. By Cardano data we refer to Blocks, Transactions, UTxOs, Certificates and all of its inner structures.
 
 When indexing this data onto a relational database, such as PostgresQL, we usually deserialize the CBOR structures and map the values to different columns & tables in our schema.
 
@@ -26,7 +24,64 @@ And the evaluation of this values will happen in-process, as part of the Db quer
 
 This is a list of the available / planned functions that are / will be supported by Mumak.
 
-// TODO
+### `tx_lovelace_output`
+Evaluates the total lovelace output of the transaction.
+
+`tx_lovelace_output(tx_cbor, tx_era)`
+
+### `tx_asset_output`
+
+Evaluates the total output of a specific asset of the transaction.
+
+`tx_asset_output(tx_cbor, tx_era, policy_id, asset_name)`
+
+### `tx_has_address`
+Is a predicate that evaluates tx cbor structures of the specified era. It will output true if the 
+
+`tx_has_address(tx_cbor, tx_era, address_bech32)`
+
+### `tx_hash`
+Computes the hash of a transaction from its CBOR representation
+
+`tx_hash(tx_cbor, tx_era)`
+
+### `tx_has_input`
+Is a predicate that evaluates if tx cbor structure of the specified era contains a particular input.
+
+`tx_has_address(tx_cbor, tx_era, input_tx_hash, input_output_index)`
+
+### `tx_is_valid`
+Is a predicate that evaluates if tx cbor structure is considered a valid transaction from the perspective of the node validation.
+
+`tx_is_valid(tx_cbor, tx_era)`
+
+### `tx_has_asset`
+A predicate that evaluates if tx cbor structure shows an output containing a particular asset.
+
+`tx_has_asset(tx_cbor, tx_era, policy_id, asset_name)`
+
+### `tx_asset_mint`
+Evaluates the total assets of a specified of a specified policy / name that are minted by the transaction.
+
+`tx_asset_mint(tx_cbor, tx_era, policy_id, asset_name)`
+
+### `tx_asset_burn`
+Evaluates the total assets of a specified of a specified policy / name that are burned by the transaction.
+
+`tx_asset_mint(tx_cbor, tx_era, policy_id, asset_name)`
+
+### `tx_has_datum`
+A predicate that evaluates if tx cbor structure shows an output containing a particular datum.
+
+`tx_has_datum(tx_cbor, tx_era, datum_hash)`
+
+### `tx_has_metadata_label`
+A predicate that evaluates if the tx cbor structure includes metadata with a particular label
+	
+`tx_has_metadata_label(tx_cbor, tx_era, label)`
+	
+### `tx_metadata_label`
+Evaluates the metadatum value for a particular label contained in the tx cbor structure.
 
 ## Getting Started
 
