@@ -1,0 +1,5 @@
+comment = 'Cardano CBOR parser'
+default_version = '@CARGO_VERSION@'
+module_pathname = '$libdir/mumak'
+relocatable = false
+superuser = true
