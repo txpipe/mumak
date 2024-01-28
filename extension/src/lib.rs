@@ -1,5 +1,5 @@
 use pallas::ledger::{
-    addresses::Address,
+    addresses::{Address, ShelleyAddress},
     traverse::{MultiEraBlock, MultiEraTx},
 };
 use pgrx::prelude::*;
@@ -37,7 +37,7 @@ fn tx_has_address(tx_cbor: &[u8], tx_era: i32, address: &[u8]) -> bool {
 }
 
 #[pg_extern]
-fn tx_output_addresses(tx_cbor: &[u8], tx_era: i32) -> Vec<Vec<u8>> {
+fn tx_output_addresses(tx_cbor: &[u8]) -> Vec<Vec<u8>> {
     let tx = match MultiEraTx::decode(tx_cbor) {
         Ok(x) => x,
         Err(_) => return vec![],
@@ -49,6 +49,35 @@ fn tx_output_addresses(tx_cbor: &[u8], tx_era: i32) -> Vec<Vec<u8>> {
         .flatten()
         .map(|x| x.to_vec())
         .collect()
+}
+
+#[pg_extern]
+fn tx_output_addresses_bech32(tx_cbor: &[u8]) -> Vec<String> {
+    let tx = match MultiEraTx::decode(tx_cbor) {
+        Ok(x) => x,
+        Err(_) => return vec![],
+    };
+
+    tx.outputs()
+        .iter()
+        .map(|x| x.address().ok())
+        .flatten()
+        .map(|x| x.to_bech32().ok())
+        .flatten()
+        .collect()
+}
+
+#[pg_extern]
+fn address_payment_part(address: &[u8]) -> Option<String> {
+    let addr = match Address::from_bytes(address) {
+        Ok(x) => x,
+        Err(_) => return None,
+    };
+
+    match addr {
+        Address::Shelley(addr) => addr.payment().to_bech32().ok(),
+        _ => None,
+    }
 }
 
 #[cfg(any(test, feature = "pg_test"))]
