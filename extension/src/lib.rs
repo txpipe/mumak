@@ -18,7 +18,7 @@ fn block_hash(bytes: &[u8]) -> String {
 }
 
 #[pg_extern]
-fn tx_has_address(tx_cbor: &[u8], tx_era: u32, address: &[u8]) -> bool {
+fn tx_has_address(tx_cbor: &[u8], tx_era: i32, address: &[u8]) -> bool {
     let expected = match Address::from_bytes(address) {
         Ok(x) => x,
         Err(_) => return false,
@@ -37,7 +37,7 @@ fn tx_has_address(tx_cbor: &[u8], tx_era: u32, address: &[u8]) -> bool {
 }
 
 #[pg_extern]
-fn tx_output_addresses(tx_cbor: &[u8], tx_era: u32) -> Vec<Vec<u8>> {
+fn tx_output_addresses(tx_cbor: &[u8], tx_era: i32) -> Vec<Vec<u8>> {
     let tx = match MultiEraTx::decode(tx_cbor) {
         Ok(x) => x,
         Err(_) => return vec![],
