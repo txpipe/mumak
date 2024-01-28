@@ -17,7 +17,7 @@ pg16 = ["pgrx/pg16", "pgrx-tests/pg16"]
 pg_test = []
 
 [dependencies]
-pallas = "0.19.1"
+pallas = "0.21"
 pgrx = "=0.11.3"
 
 [dev-dependencies]
