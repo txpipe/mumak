@@ -1,5 +1,6 @@
 use pallas::ledger::{
     addresses::{Address, ShelleyAddress},
+    primitives::ToCanonicalJson,
     traverse::{MultiEraBlock, MultiEraTx},
 };
 use pgrx::prelude::*;
@@ -12,14 +13,20 @@ fn hello_extension() -> &'static str {
 }
 
 #[pg_extern]
+fn pretty_cbor(bytes: &[u8]) -> String {
+    let tokens = pallas::codec::minicbor::decode::Tokenizer::new(bytes);
+    format!("{}", tokens)
+}
+
+#[pg_extern]
 fn block_hash(bytes: &[u8]) -> String {
     let block = MultiEraBlock::decode(bytes).unwrap();
     block.hash().to_string()
 }
 
 #[pg_extern]
-fn tx_has_address(tx_cbor: &[u8], tx_era: i32, address: &[u8]) -> bool {
-    let expected = match Address::from_bytes(address) {
+fn tx_has_address(tx_cbor: &[u8], address: &str) -> bool {
+    let expected = match Address::from_bech32(address) {
         Ok(x) => x,
         Err(_) => return false,
     };
@@ -49,6 +56,77 @@ fn tx_output_addresses(tx_cbor: &[u8]) -> Vec<Vec<u8>> {
         .flatten()
         .map(|x| x.to_vec())
         .collect()
+}
+
+#[pg_extern]
+fn tx_has_input(tx_cbor: &[u8], hash: &[u8], index: Option<i32>) -> bool {
+    let tx = match MultiEraTx::decode(tx_cbor) {
+        Ok(x) => x,
+        Err(_) => return false,
+    };
+
+    tx.inputs().iter().any(|i| i.hash().as_ref().eq(hash))
+}
+
+#[pg_extern]
+fn tx_has_reference_input(tx_cbor: &[u8], hash: &[u8], index: Option<i32>) -> bool {
+    let tx = match MultiEraTx::decode(tx_cbor) {
+        Ok(x) => x,
+        Err(_) => return false,
+    };
+
+    tx.reference_inputs()
+        .iter()
+        .any(|i| i.hash().as_ref().eq(hash))
+}
+
+#[pg_extern]
+fn tx_reference_inputs(tx_cbor: &[u8]) -> Vec<Vec<u8>> {
+    let tx = match MultiEraTx::decode(tx_cbor) {
+        Ok(x) => x,
+        Err(_) => return vec![],
+    };
+
+    tx.reference_inputs()
+        .iter()
+        .map(|i| i.hash().to_vec())
+        .collect()
+}
+
+#[pg_extern]
+fn tx_redeemers(tx_cbor: &[u8]) -> Vec<pgrx::Json> {
+    let tx = match MultiEraTx::decode(tx_cbor) {
+        Ok(x) => x,
+        Err(_) => return vec![],
+    };
+
+    tx.redeemers()
+        .iter()
+        .map(|x| pgrx::Json(x.data.to_json()))
+        .collect()
+}
+
+#[pg_extern]
+fn tx_plutus_data(tx_cbor: &[u8]) -> Vec<pgrx::Json> {
+    let tx = match MultiEraTx::decode(tx_cbor) {
+        Ok(x) => x,
+        Err(_) => return vec![],
+    };
+
+    tx.plutus_data()
+        .iter()
+        .map(|x| pgrx::Json(x.to_json()))
+        .collect()
+}
+
+#[pg_extern]
+fn tx_has_redeemer(tx_cbor: &[u8]) -> bool {
+    let tx = match MultiEraTx::decode(tx_cbor) {
+        Ok(x) => x,
+        Err(_) => return false,
+    };
+
+    tx.redeemers().iter().count() > 0
 }
 
 #[pg_extern]
