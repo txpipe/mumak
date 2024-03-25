@@ -30,5 +30,6 @@ WORKDIR /source
 # WORKDIR /source/mumak/extension
 
 COPY ./extension ./
-
 RUN cargo pgrx install
+
+COPY ./init-db.sh /docker-entrypoint-initdb.d/
