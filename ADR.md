@@ -20,6 +20,8 @@ The conventional approach to indexing Cardano blockchain data involves deseriali
 
 Mumak's projection functions are designed to offer flexible output formats to accommodate various use cases and developer preferences, providing three primary types of results:
 
+> We use canonical representations of common data types in the Cardano ecosystem, such as addresses, policy IDs, and asset names, to ensure consistency and compatibility with other Cardano applications and services.
+
 - **PostgreSQL Query Result**: Standard output format, ideal for direct use within SQL queries and compatible with SQL-based data analysis and reporting tools.
 
 - **JSON (CIP-116 Compliant)**: In alignment with the Cardano Improvement Proposal [CIP-116](https://github.com/klntsky/CIPs/blob/klntsky/json-spec-cip/CIP-XXXX/README.md), which standardizes JSON representations of blockchain data, Mumak's projection functions can return results in a structured JSON format compliant with these guidelines. This standardization ensures that the JSON output is not only web-friendly but also consistent with the broader Cardano ecosystem, facilitating seamless integration and interoperability with other Cardano-based applications and services.
@@ -74,6 +76,6 @@ This approach streamlines interaction with Cardano blockchain data by utilizing 
 
 - **Block projections**
 
-- **Error Returns Best Practice**
+- **Error Returns - Best Practice**
 
 - **Performance Benchmarks**: While the extension is designed with performance in mind, the actual gains from direct CBOR interaction versus traditional data normalization approaches need to be quantified through comprehensive benchmarking.
