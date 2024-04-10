@@ -15,21 +15,25 @@ RUN apt update && apt -y install \
     libxml2-utils \
     xsltproc \
     ccache \
-    pkg-config
+    pkg-config \
+    sudo
 
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+# Add postgres to the sudoers with no password prompt for specific commands
+RUN echo "postgres ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/postgres
 
-# RUN chmod +x $HOME/.cargo/env && $HOME/.cargo/env
-ENV PATH="/root/.cargo/bin:${PATH}"
+RUN chown -R postgres:postgres /usr/share/postgresql
+RUN chown -R postgres:postgres /usr/lib/postgresql
+# Using su instead of USER since dev container doesn't seem to like USER docker directive
+RUN su - postgres -c 'curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y'
 
-RUN cargo install --locked cargo-pgrx && cargo pgrx init
+RUN echo 'export PATH="/var/lib/postgresql/.cargo/bin:${PATH}"' >> /var/lib/postgresql/.bashrc
+RUN echo 'export USER=postgres' >> /var/lib/postgresql/.bashrc
+
+RUN su - postgres -c 'cargo install --locked cargo-pgrx && cargo pgrx init'
 
 WORKDIR /source
-
-# RUN git clone https://github.com/txpipe/mumak.git
-# WORKDIR /source/mumak/extension
-
 COPY ./extension ./
-RUN cargo pgrx install
+RUN sudo chown -R postgres:postgres /source
+RUN su - postgres -c 'cd /source && cargo pgrx install'
 
 COPY ./init-db.sh /docker-entrypoint-initdb.d/
