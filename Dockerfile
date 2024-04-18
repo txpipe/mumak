@@ -18,6 +18,9 @@ RUN apt update && apt -y install \
     pkg-config \
     sudo
 
+# Temporary to make vscode extension work since its running under root
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
 # Add postgres to the sudoers with no password prompt for specific commands
 RUN echo "postgres ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/postgres
 
