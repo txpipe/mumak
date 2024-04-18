@@ -18,7 +18,7 @@ pg_test = []
 
 [dependencies]
 # pallas = "0.21"
-pallas = { version = "0.24", git = "https://github.com/txpipe/pallas.git" }
+pallas = { version = "0.25", git = "https://github.com/txpipe/pallas.git" }
 pgrx = "=0.11.3"
 serde_json = "1.0.114"
 serde = "1.0.197"
