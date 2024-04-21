@@ -207,6 +207,35 @@ fn address_to_bytes(address: String) -> Vec<u8> {
 }
 
 #[pg_extern]
+fn address_bytes_to_bech32(address_bytes: &[u8]) -> String {
+    let address = match Address::from_bytes(address_bytes) {
+        Ok(x) => x,
+        Err(_) => return "".to_string(),
+    };
+
+    match address.to_bech32() {
+        Ok(x) => x,
+        // @TODO: this is not bech32 though?
+        Err(_) => ByronAddress::from_bytes(address_bytes).unwrap().to_base58(), 
+    }
+}
+
+#[pg_extern]
+fn utxo_address(era: i32, utxo_cbor: &[u8]) -> Vec<u8> {
+    let era_enum = match pallas::ledger::traverse::Era::from_int(era) {
+        Some(x) => x,
+        None => return vec![],
+    };
+
+    let output = match MultiEraOutput::decode(era_enum, utxo_cbor) {
+        Ok(x) => x,
+        Err(_) => return vec![],
+    };
+
+    output.address().unwrap().to_vec()
+}
+
+#[pg_extern]
 fn utxo_has_policy_id_output(era: i32, utxo_cbor: &[u8], policy_id: &[u8]) -> bool {
     let era_enum = match pallas::ledger::traverse::Era::from_int(era) {
         Some(x) => x,
@@ -241,6 +270,21 @@ fn utxo_has_address_output(era: i32, utxo_cbor: &[u8], address: &[u8]) -> bool {
 }
 
 #[pg_extern]
+fn utxo_lovelace(era: i32, utxo_cbor: &[u8]) -> pgrx::AnyNumeric {
+    let era_enum = match pallas::ledger::traverse::Era::from_int(era) {
+        Some(x) => x,
+        None => return AnyNumeric::from(0),
+    };
+
+    let output = match MultiEraOutput::decode(era_enum, utxo_cbor) {
+        Ok(x) => x,
+        Err(_) => return AnyNumeric::from(0),
+    };
+
+    AnyNumeric::from(output.lovelace_amount())
+}
+
+#[pg_extern]
 fn utxo_policy_id_asset_names(
     era: i32,
     utxo_cbor: &[u8],
@@ -270,6 +314,36 @@ fn utxo_policy_id_asset_names(
         .collect::<Vec<_>>();
 
     SetOfIterator::new(asset_names)
+}
+
+#[pg_extern]
+fn utxo_asset_values(
+    era: i32,
+    utxo_cbor: &[u8]
+) -> TableIterator<'static, (name!(policy_id, Vec<u8>), name!(asset_name, Vec<u8>), name!(amount, pgrx::AnyNumeric))> {
+    let era_enum = match pallas::ledger::traverse::Era::from_int(era) {
+        Some(x) => x,
+        None => return TableIterator::new(std::iter::empty()),
+    };
+
+    let output = match MultiEraOutput::decode(era_enum, utxo_cbor) {
+        Ok(x) => x,
+        Err(_) => return TableIterator::new(std::iter::empty()),
+    };
+
+    let asset_values = output
+        .non_ada_assets()
+        .to_vec()
+        .iter()
+        .flat_map(|a| {
+            a.assets()
+                .iter()
+                .map(|a| (a.policy().to_vec(), a.name().to_vec(), AnyNumeric::from(a.any_coin())))
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+
+    TableIterator::new(asset_values.into_iter())
 }
 
 #[pg_extern]
@@ -337,7 +411,7 @@ fn utxo_subject_amount(era: i32, utxo_cbor: &[u8], subject: &[u8]) -> pgrx::AnyN
 }
 
 #[pg_extern]
-fn utxos_plutus_data(era: i32, utxo_cbor: &[u8]) -> pgrx::Json {
+fn utxo_plutus_data(era: i32, utxo_cbor: &[u8]) -> pgrx::Json {
     let era_enum = match pallas::ledger::traverse::Era::from_int(era) {
         Some(x) => x,
         None => return pgrx::Json(serde_json::json!(null)),
