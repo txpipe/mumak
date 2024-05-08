@@ -1,0 +1,67 @@
+name: Build, Upload and Release
+
+on:
+  push:
+    branches:
+      - main
+      - ci/release-binary
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Build Docker image
+        run: docker build . -t mumak
+
+      - name: Run Docker container and extract artifacts
+        run: |
+          docker run --name app mumak
+          mkdir -p artifacts
+          docker cp app:/source/target/release/mumak-pg16/usr/share/postgresql/16/extension/mumak.control ./artifacts/
+          docker cp app:/source/target/release/mumak-pg16/usr/lib/postgresql/16/lib/mumak.so ./artifacts/
+          SQL_FILE=$(docker exec app sh -c "ls /source/target/release/mumak-pg16/usr/share/postgresql/16/extension/mumak--*.sql")
+          docker cp "app:$SQL_FILE" ./artifacts/
+          # Tar the files
+          tar -czvf mumak-artifacts.tar.gz -C artifacts .
+
+      - name: Upload Tarred Artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: mumak-artifacts
+          path: ./mumak-artifacts.tar.gz
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build-and-upload
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Tarred Artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: mumak-artifacts
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./mumak-artifacts.tar.gz
+          asset_name: mumak-artifacts.tar.gz
+          asset_content_type: application/gzip
