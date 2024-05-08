@@ -20,7 +20,7 @@ jobs:
 
       - name: Run Docker container and extract artifacts
         run: |
-          docker run -e POSTGRES_PASSWORD=password --name app mumak
+          docker run -e POSTGRES_PASSWORD=password -d --name app mumak
           mkdir -p artifacts
           docker cp app:/source/target/release/mumak-pg16/usr/share/postgresql/16/extension/mumak.control ./artifacts/
           docker cp app:/source/target/release/mumak-pg16/usr/lib/postgresql/16/lib/mumak.so ./artifacts/
