@@ -36,7 +36,7 @@ jobs:
           file: ./Dockerfile
           tags: mumak:latest
           push: false
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,mode=max,dest=/tmp/.buildx-cache
 
@@ -57,22 +57,22 @@ jobs:
           name: mumak-artifacts-amd64
           path: ./mumak-artifacts-amd64.tar.gz
 
-      - name: Run Docker container and extract artifacts (ARM64)
-        run: |
-          docker run -e POSTGRES_PASSWORD=password -d --name app-arm mumak:latest
-          mkdir -p artifacts-arm
-          docker cp app-arm:/source/target/release/mumak-pg16/usr/share/postgresql/16/extension/mumak.control ./artifacts-arm/
-          docker cp app-arm:/source/target/release/mumak-pg16/usr/lib/postgresql/16/lib/mumak.so ./artifacts-arm/
-          SQL_FILE=$(docker exec app-arm sh -c "ls /source/target/release/mumak-pg16/usr/share/postgresql/16/extension/mumak--*.sql")
-          docker cp "app-arm:$SQL_FILE" ./artifacts-arm/
-          docker stop app-arm
-          tar -czvf mumak-artifacts-arm64.tar.gz -C artifacts-arm .
+      # - name: Run Docker container and extract artifacts (ARM64)
+      #   run: |
+      #     docker run -e POSTGRES_PASSWORD=password -d --name app-arm mumak:latest
+      #     mkdir -p artifacts-arm
+      #     docker cp app-arm:/source/target/release/mumak-pg16/usr/share/postgresql/16/extension/mumak.control ./artifacts-arm/
+      #     docker cp app-arm:/source/target/release/mumak-pg16/usr/lib/postgresql/16/lib/mumak.so ./artifacts-arm/
+      #     SQL_FILE=$(docker exec app-arm sh -c "ls /source/target/release/mumak-pg16/usr/share/postgresql/16/extension/mumak--*.sql")
+      #     docker cp "app-arm:$SQL_FILE" ./artifacts-arm/
+      #     docker stop app-arm
+      #     tar -czvf mumak-artifacts-arm64.tar.gz -C artifacts-arm .
 
-      - name: Upload Tarred Artifacts (ARM64)
-        uses: actions/upload-artifact@v2
-        with:
-          name: mumak-artifacts-arm64
-          path: ./mumak-artifacts-arm64.tar.gz
+      # - name: Upload Tarred Artifacts (ARM64)
+      #   uses: actions/upload-artifact@v2
+      #   with:
+      #     name: mumak-artifacts-arm64
+      #     path: ./mumak-artifacts-arm64.tar.gz
 
   release:
     if: startsWith(github.ref, 'refs/tags/')
@@ -84,10 +84,10 @@ jobs:
         with:
           name: mumak-artifacts-amd64
 
-      - name: Download Tarred Artifacts (ARM64)
-        uses: actions/download-artifact@v2
-        with:
-          name: mumak-artifacts-arm64
+      # - name: Download Tarred Artifacts (ARM64)
+      #   uses: actions/download-artifact@v2
+      #   with:
+      #     name: mumak-artifacts-arm64
 
       - name: Create Release
         id: create_release
@@ -110,12 +110,12 @@ jobs:
           asset_name: mumak-artifacts-amd64.tar.gz
           asset_content_type: application/gzip
 
-      - name: Upload Release Asset (ARM64)
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./mumak-artifacts-arm64.tar.gz
-          asset_name: mumak-artifacts-arm64.tar.gz
-          asset_content_type: application/gzip
+      # - name: Upload Release Asset (ARM64)
+      #   uses: actions/upload-release-asset@v1
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #   with:
+      #     upload_url: ${{ steps.create_release.outputs.upload_url }}
+      #     asset_path: ./mumak-artifacts-arm64.tar.gz
+      #     asset_name: mumak-artifacts-arm64.tar.gz
+      #     asset_content_type: application/gzip
