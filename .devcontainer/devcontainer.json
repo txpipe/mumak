@@ -6,7 +6,11 @@
 		// Sets the run context to one level up instead of the .devcontainer folder.
 		"context": "..",
 		// Update the 'dockerFile' property if you aren't using the standard 'Dockerfile' filename.
-		"dockerfile": "../Dockerfile"
+		"dockerfile": "../dev.Dockerfile",
+		"args": {
+			"UID": "1000",
+			"GID": "1000"
+		}
 	},
 	"containerEnv": {
 		"POSTGRES_PASSWORD": "Test1234"

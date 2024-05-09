@@ -1,0 +1,122 @@
+name: Build, Upload and Release
+
+on:
+  push:
+    branches:
+      - main
+      - ci/release-binary
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Cache Docker layers
+        uses: actions/cache@v2
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      - name: Build Docker image for AMD64 and ARM64
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./Dockerfile
+          tags: mumak:latest
+          push: false
+          platforms: linux/amd64
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,mode=max,dest=/tmp/.buildx-cache
+          load: true
+
+      - name: Run Docker container and extract artifacts (AMD64)
+        run: |
+          docker run -e POSTGRES_PASSWORD=password -d --name app mumak:latest
+          mkdir -p artifacts
+          docker cp app:/source/target/release/mumak-pg16/usr/share/postgresql/16/extension/mumak.control ./artifacts/
+          docker cp app:/source/target/release/mumak-pg16/usr/lib/postgresql/16/lib/mumak.so ./artifacts/
+          SQL_FILE=$(docker exec app sh -c "ls /source/target/release/mumak-pg16/usr/share/postgresql/16/extension/mumak--*.sql")
+          docker cp "app:$SQL_FILE" ./artifacts/
+          docker stop app
+          tar -czvf mumak-artifacts-amd64.tar.gz -C artifacts .
+
+      - name: Upload Tarred Artifacts (AMD64)
+        uses: actions/upload-artifact@v2
+        with:
+          name: mumak-artifacts-amd64
+          path: ./mumak-artifacts-amd64.tar.gz
+
+      # - name: Run Docker container and extract artifacts (ARM64)
+      #   run: |
+      #     docker run -e POSTGRES_PASSWORD=password -d --name app-arm mumak:latest
+      #     mkdir -p artifacts-arm
+      #     docker cp app-arm:/source/target/release/mumak-pg16/usr/share/postgresql/16/extension/mumak.control ./artifacts-arm/
+      #     docker cp app-arm:/source/target/release/mumak-pg16/usr/lib/postgresql/16/lib/mumak.so ./artifacts-arm/
+      #     SQL_FILE=$(docker exec app-arm sh -c "ls /source/target/release/mumak-pg16/usr/share/postgresql/16/extension/mumak--*.sql")
+      #     docker cp "app-arm:$SQL_FILE" ./artifacts-arm/
+      #     docker stop app-arm
+      #     tar -czvf mumak-artifacts-arm64.tar.gz -C artifacts-arm .
+
+      # - name: Upload Tarred Artifacts (ARM64)
+      #   uses: actions/upload-artifact@v2
+      #   with:
+      #     name: mumak-artifacts-arm64
+      #     path: ./mumak-artifacts-arm64.tar.gz
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build-and-upload
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Tarred Artifacts (AMD64)
+        uses: actions/download-artifact@v2
+        with:
+          name: mumak-artifacts-amd64
+
+      # - name: Download Tarred Artifacts (ARM64)
+      #   uses: actions/download-artifact@v2
+      #   with:
+      #     name: mumak-artifacts-arm64
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+
+      - name: Upload Release Asset (AMD64)
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./mumak-artifacts-amd64.tar.gz
+          asset_name: mumak-artifacts-amd64.tar.gz
+          asset_content_type: application/gzip
+
+      # - name: Upload Release Asset (ARM64)
+      #   uses: actions/upload-release-asset@v1
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #   with:
+      #     upload_url: ${{ steps.create_release.outputs.upload_url }}
+      #     asset_path: ./mumak-artifacts-arm64.tar.gz
+      #     asset_name: mumak-artifacts-arm64.tar.gz
+      #     asset_content_type: application/gzip

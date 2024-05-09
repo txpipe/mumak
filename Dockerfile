@@ -18,25 +18,12 @@ RUN apt update && apt -y install \
     pkg-config \
     sudo
 
-# Temporary to make vscode extension work since its running under root
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
 
-# Add postgres to the sudoers with no password prompt for specific commands
-RUN echo "postgres ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/postgres
-
-RUN chown -R postgres:postgres /usr/share/postgresql
-RUN chown -R postgres:postgres /usr/lib/postgresql
-# Using su instead of USER since dev container doesn't seem to like USER docker directive
-RUN su - postgres -c 'curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y'
-
-RUN echo 'export PATH="/var/lib/postgresql/.cargo/bin:${PATH}"' >> /var/lib/postgresql/.bashrc
-RUN echo 'export USER=postgres' >> /var/lib/postgresql/.bashrc
-
-RUN su - postgres -c 'cargo install --locked cargo-pgrx && cargo pgrx init'
+RUN cargo install --locked cargo-pgrx && cargo pgrx init
 
 WORKDIR /source
 COPY ./extension ./
-RUN sudo chown -R postgres:postgres /source
-RUN su - postgres -c 'cd /source && cargo pgrx install'
 
-COPY ./init-db.sh /docker-entrypoint-initdb.d/
+RUN cargo pgrx package
