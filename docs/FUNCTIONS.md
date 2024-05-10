@@ -1,0 +1,255 @@
+# PROJECTIONS
+
+<details>
+    <summary>
+        <code>tx_hash(tx_cbor: &[u8]) -> String</code>
+    </summary>
+
+    # Arguments
+
+    * `tx_cbor` - The transaction data in CBOR format.
+
+    # Returns
+
+    The hash of the given transaction data as a string.
+
+    # Example
+
+    select tx_hash(body) from transactions;
+</details>
+
+<details>
+    <summary>
+        <code>tx_inputs(tx_cbor: &[u8]) -> TableIterator<'static, (name!(hash, String), name!(index, i64))></code>
+    </summary>
+
+    # Arguments
+    
+    * `tx_cbor` - The transaction data in CBOR format.
+
+    # Returns
+
+    An iterator over the inputs of the given transaction data, where each input is represented as a tuple of the input hash and index.
+
+    # Example
+
+    SELECT t.*
+    FROM transactions,
+    LATERAL tx_inputs(transactions.body) AS t(hash, index)
+</details>
+
+<details>
+    <summary>
+        <code>tx_addresses(tx_cbor: &[u8]) -> SetOfIterator<'static, Vec<`u8`>></code>
+    </summary>
+
+    # Arguments
+
+    * `tx_cbor` - The transaction data in CBOR format.
+
+    # Returns
+
+    A set of addresses involved in the given transaction data.
+
+    # Example
+
+    select tx_addresses("body") from transactions;
+</details>
+
+<details>
+    <summary>
+        <code>tx_plutus_data(tx_cbor: &[u8]) -> Vec<`pgrx::Json`></code>
+    </summary>
+
+    # Arguments
+
+    * `tx_cbor` - The transaction data in CBOR format.
+
+    # Returns
+
+    The Plutus data of the given transaction data.
+
+    # Example
+
+    select tx_plutus_data("body") from transactions;
+</details>
+
+<details>
+    <summary>
+        <code>utxo_address(era: i32, utxo_cbor: &[u8]) -> Vec<`u8`></code>
+    </summary>
+
+    # Arguments
+
+    * `era` - Specifies the era during which the transaction containing this UTXO was executed.
+
+    * `utxo_cbor` - The UTxO data in CBOR format.
+
+    # Returns
+
+    The address of the given UTxO data.
+
+    # Example
+
+    select utxo_address("Era", "Cbor") from utxo;
+</details>
+
+<details>
+    <summary>
+        <code>utxo_lovelace(era: i32, utxo_cbor: &[u8]) -> pgrx::AnyNumeric</code>
+    </summary>
+
+    # Arguments
+
+    * `era` - Specifies the era during which the transaction containing this UTXO was executed.
+
+    * `utxo_cbor` - The UTxO data in CBOR format.
+
+    # Returns
+
+    The lovelace amount of the given UTxO data.
+
+    # Example
+
+    select utxo_lovelace("Era", "Cbor") from utxo;
+</details>
+
+# FILTERS
+
+<details>
+    <summary>
+        <code>utxo_has_policy_id_output(era: i32, utxo_cbor: &[u8], policy_id: &[u8]) -> bool</code>
+    </summary>
+
+    # Arguments
+
+    * `era` - Specifies the era during which the transaction containing this UTXO was executed.
+
+    * `utxo_cbor` - The UTxO data in CBOR format.
+
+    * `address` - The address in byte array format.
+
+    # Returns
+
+    A boolean value indicating whether the given UTxO data has the specified address in its output.
+
+    # Example
+
+    select utxo_has_policy_id_output("Era", "Cbor", encode('policy_hex', 'hex')) from utxo;
+</details>
+
+<details>
+    <summary>
+        <code>utxo_has_address_output(era: i32, utxo_cbor: &[u8], address: &[u8]) -> bool</code>
+    </summary>
+
+    # Arguments
+
+    * `era` - Specifies the era during which the transaction containing this UTXO was executed.
+
+    * `utxo_cbor` - The UTxO data in CBOR format.
+
+    * `address` - The address in byte array format.
+
+    # Returns
+
+    A boolean value indicating whether the given UTxO data has the specified address in its output.
+
+    # Example
+
+    select utxo_has_address_output("Era", "Cbor", address_to_bytes("addr1")) from utxo;
+</details>
+
+# UTILITY
+
+<details>
+    <summary>
+        <code>address_network_id(address: &[u8]) -> i64</code>
+    </summary>
+
+    # Arguments
+
+    * `address` - The address in byte array format.
+
+    # Returns
+
+    The network ID of the given address.
+
+    # Example
+
+    select address_network_id(tx_addresses("body")) from transactions;
+</details>
+
+<details>
+    <summary>
+        <code>address_payment_part(address: &[u8]) -> Vec<`u8`></code>
+    </summary>
+
+    # Arguments
+
+    * `address` - The address in byte array format.
+
+    # Returns
+
+    The payment part of the given address.
+
+    # Example
+
+    select address_payment_part(tx_addresses("body")) from transactions;
+</details>
+
+<details>
+    <summary>
+        <code>address_stake_part(address: &[u8]) -> Vec<`u8`></code>
+    </summary>
+
+    # Arguments
+
+    * `address` - The address in byte array format.
+
+    # Returns
+
+    The stake part of the given address.
+
+    # Example
+
+    select address_stake_part(tx_addresses("body")) from transactions;
+</details>
+
+<details>
+    <summary>
+        <code>address_to_bytes(address: String) -> Vec<`u8`></code>
+    </summary>
+
+    Returns the byte array representation of the given address string.
+
+    # Arguments
+
+    * `address` - The address in string format.
+
+    # Returns
+
+    The byte array representation of the given address string.
+
+    # Example
+
+    select address_to_bytes(tx_addresses("body")) from transactions;
+</details>
+
+<details>
+    <summary>
+        <code>address_bytes_to_bech32(address: String) -> Vec<`u8`></code>
+    </summary>
+
+    # Arguments
+
+    * `address` - The address in byte array format.
+
+    # Returns
+
+    The Bech32 representation of the given address.
+
+    # Example
+
+    select address_bytes_to_bech32(tx_addresses("body")) from transactions;
+</details>
