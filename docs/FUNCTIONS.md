@@ -2,7 +2,7 @@
 
 <details>
     <summary>
-        <code>tx_hash(tx_cbor: &[u8]) -> String</code>
+        <code>tx_hash(tx_cbor: &[u8])</code>
     </summary>
 
     # Arguments
@@ -20,7 +20,7 @@
 
 <details>
     <summary>
-        <code>tx_inputs(tx_cbor: &[u8]) -> TableIterator<'static, (name!(hash, String), name!(index, i64))></code>
+        <code>tx_inputs(tx_cbor: &[u8])</code>
     </summary>
 
     # Arguments
@@ -40,7 +40,7 @@
 
 <details>
     <summary>
-        <code>tx_addresses(tx_cbor: &[u8]) -> SetOfIterator<'static, Vec<`u8`>></code>
+        <code>tx_addresses(tx_cbor: &[u8])</code>
     </summary>
 
     # Arguments
@@ -58,7 +58,7 @@
 
 <details>
     <summary>
-        <code>tx_plutus_data(tx_cbor: &[u8]) -> Vec<`pgrx::Json`></code>
+        <code>tx_plutus_data(tx_cbor: &[u8])</code>
     </summary>
 
     # Arguments
@@ -76,7 +76,7 @@
 
 <details>
     <summary>
-        <code>utxo_address(era: i32, utxo_cbor: &[u8]) -> Vec<`u8`></code>
+        <code>utxo_address(era: i32, utxo_cbor: &[u8])</code>
     </summary>
 
     # Arguments
@@ -96,7 +96,7 @@
 
 <details>
     <summary>
-        <code>utxo_lovelace(era: i32, utxo_cbor: &[u8]) -> pgrx::AnyNumeric</code>
+        <code>utxo_lovelace(era: i32, utxo_cbor: &[u8])</code>
     </summary>
 
     # Arguments
@@ -116,7 +116,7 @@
 
 <details>
     <summary>
-        <code>utxo_policy_id_asset_names(era: i32, utxo_cbor: &[u8], policy_id: &[u8]) -> SetOfIterator<'static, Vec<`u8`>></code>
+        <code>utxo_policy_id_asset_names(era: i32, utxo_cbor: &[u8], policy_id: &[u8])</code>
     </summary>
 
     # Arguments
@@ -138,7 +138,7 @@
 
 <details>
     <summary>
-        <code>utxo_asset_values(era: i32, utxo_cbor: &[u8]) -> TableIterator<'static, (name!(policy_id, Vec<`u8`>), name!(asset_name, Vec<`u8`>), name!(amount, pgrx::AnyNumeric))></code>
+        <code>utxo_asset_values(era: i32, utxo_cbor: &[u8])</code>
     </summary>
 
     # Arguments
@@ -158,7 +158,7 @@
 
 <details>
     <summary>
-        <code>utxo_policy_id_asset_values(era: i32, utxo_cbor: &[u8], policy_id: &[u8]) -> TableIterator<'static, (name!(asset_name, Vec<u8>), name!(amount, pgrx::AnyNumeric))></code>
+        <code>utxo_policy_id_asset_values(era: i32, utxo_cbor: &[u8], policy_id: &[u8])</code>
     </summary>
 
     # Arguments
@@ -180,7 +180,7 @@
 
 <details>
     <summary>
-        <code>utxo_subject_amount(era: i32, utxo_cbor: &[u8], subject: &[u8]) -> pgrx::AnyNumeric</code>
+        <code>utxo_subject_amount(era: i32, utxo_cbor: &[u8], subject: &[u8])</code>
     </summary>
 
     # Arguments
@@ -202,7 +202,7 @@
 
 <details>
     <summary>
-        <code>utxo_plutus_data(era: i32, utxo_cbor: &[u8]) -> pgrx::Json</code>
+        <code>utxo_plutus_data(era: i32, utxo_cbor: &[u8])</code>
     </summary>
 
     # Arguments
@@ -224,7 +224,7 @@
 
 <details>
     <summary>
-        <code>utxo_has_policy_id_output(era: i32, utxo_cbor: &[u8], policy_id: &[u8]) -> bool</code>
+        <code>utxo_has_policy_id_output(era: i32, utxo_cbor: &[u8], policy_id: &[u8])</code>
     </summary>
 
     # Arguments
@@ -246,7 +246,7 @@
 
 <details>
     <summary>
-        <code>utxo_has_address_output(era: i32, utxo_cbor: &[u8], address: &[u8]) -> bool</code>
+        <code>utxo_has_address_output(era: i32, utxo_cbor: &[u8], address: &[u8])</code>
     </summary>
 
     # Arguments
@@ -270,7 +270,7 @@
 
 <details>
     <summary>
-        <code>address_network_id(address: &[u8]) -> i64</code>
+        <code>address_network_id(address: &[u8])</code>
     </summary>
 
     # Arguments
@@ -288,7 +288,7 @@
 
 <details>
     <summary>
-        <code>address_payment_part(address: &[u8]) -> Vec<`u8`></code>
+        <code>address_payment_part(address: &[u8])</code>
     </summary>
 
     # Arguments
@@ -306,7 +306,7 @@
 
 <details>
     <summary>
-        <code>address_stake_part(address: &[u8]) -> Vec<`u8`></code>
+        <code>address_stake_part(address: &[u8])</code>
     </summary>
 
     # Arguments
@@ -324,7 +324,7 @@
 
 <details>
     <summary>
-        <code>address_to_bytes(address: String) -> Vec<`u8`></code>
+        <code>address_to_bytes(address: String)</code>
     </summary>
 
     Returns the byte array representation of the given address string.
@@ -344,7 +344,7 @@
 
 <details>
     <summary>
-        <code>address_bytes_to_bech32(address: String) -> Vec<`u8`></code>
+        <code>address_bytes_to_bech32(address: String)</code>
     </summary>
 
     # Arguments
