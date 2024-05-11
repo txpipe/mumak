@@ -116,12 +116,7 @@
 
 <details>
     <summary>
-        <code>utxo_policy_id_asset_names(
-            era: i32,
-            utxo_cbor: &[u8],
-            policy_id: &[u8],
-        ) -> SetOfIterator<'static, Vec<`u8`>>
-        </code>
+        <code>utxo_policy_id_asset_names(era: i32, utxo_cbor: &[u8], policy_id: &[u8]) -> SetOfIterator<'static, Vec<`u8`>></code>
     </summary>
 
     # Arguments
