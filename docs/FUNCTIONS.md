@@ -143,11 +143,7 @@
 
 <details>
     <summary>
-        <code>utxo_asset_values(
-    era: i32,
-    utxo_cbor: &[u8]
-) -> TableIterator<'static, (name!(policy_id, Vec<`u8`>), name!(asset_name, Vec<`u8`>), name!(amount, pgrx::AnyNumeric))>
-        </code>
+        <code>utxo_asset_values(era: i32, utxo_cbor: &[u8]) -> TableIterator<'static, (name!(policy_id, Vec<`u8`>), name!(asset_name, Vec<`u8`>), name!(amount, pgrx::AnyNumeric))></code>
     </summary>
 
     # Arguments
@@ -167,12 +163,7 @@
 
 <details>
     <summary>
-        <code>utxo_policy_id_asset_values(
-    era: i32,
-    utxo_cbor: &[u8],
-    policy_id: &[u8],
-) -> TableIterator<'static, (name!(asset_name, Vec<u8>), name!(amount, pgrx::AnyNumeric))>
-        </code>
+        <code>utxo_policy_id_asset_values(era: i32, utxo_cbor: &[u8], policy_id: &[u8]) -> TableIterator<'static, (name!(asset_name, Vec<u8>), name!(amount, pgrx::AnyNumeric))></code>
     </summary>
 
     # Arguments
@@ -194,8 +185,7 @@
 
 <details>
     <summary>
-        <code>utxo_subject_amount(era: i32, utxo_cbor: &[u8], subject: &[u8]) -> pgrx::AnyNumeric
-        </code>
+        <code>utxo_subject_amount(era: i32, utxo_cbor: &[u8], subject: &[u8]) -> pgrx::AnyNumeric</code>
     </summary>
 
     # Arguments
@@ -217,8 +207,7 @@
 
 <details>
     <summary>
-        <code>utxo_plutus_data(era: i32, utxo_cbor: &[u8]) -> pgrx::Json
-        </code>
+        <code>utxo_plutus_data(era: i32, utxo_cbor: &[u8]) -> pgrx::Json</code>
     </summary>
 
     # Arguments
