@@ -1,7 +1,3 @@
-# PROJECTIONS
-
-## Tx CDDL Structure
-
 ### tx_hash
 Computes the hash of a transaction from its CBOR representation
 
