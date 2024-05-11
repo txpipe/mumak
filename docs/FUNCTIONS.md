@@ -1,4 +1,6 @@
-# PROJECTIONS
+# Mumak Functions List
+
+## PROJECTIONS
 
 <details>
     <summary>
@@ -220,7 +222,7 @@
     select utxo_plutus_data("Era", "Cbor") from utxo;
 </details>
 
-# FILTERS
+## FILTERS
 
 <details>
     <summary>
@@ -266,7 +268,7 @@
     select utxo_has_address_output("Era", "Cbor", address_to_bytes("addr1")) from utxo;
 </details>
 
-# UTILITY
+## UTILITY
 
 <details>
     <summary>
