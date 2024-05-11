@@ -67,7 +67,7 @@
 
     # Returns
 
-    The Plutus data of the given transaction data.
+    The Plutus data of the given transaction data in canonical JSON format.
 
     # Example
 
@@ -112,6 +112,128 @@
     # Example
 
     select utxo_lovelace("Era", "Cbor") from utxo;
+</details>
+
+<details>
+    <summary>
+        <code>utxo_policy_id_asset_names(
+            era: i32,
+            utxo_cbor: &[u8],
+            policy_id: &[u8],
+        ) -> SetOfIterator<'static, Vec<`u8`>>
+        </code>
+    </summary>
+
+    # Arguments
+
+    * `era` - Specifies the era during which the transaction containing this UTXO was executed.
+
+    * `utxo_cbor` - The UTxO data in CBOR format.
+
+    * `policy_id` - The policy ID in byte array format.
+
+    # Returns
+
+    A set of asset names associated with the given policy ID in the UTxO data.
+
+    # Example
+
+    select utxo_policy_id_asset_names("Era", "Cbor", encode('policy_hex', 'hex')) from utxo;
+</details>
+
+<details>
+    <summary>
+        <code>utxo_asset_values(
+    era: i32,
+    utxo_cbor: &[u8]
+) -> TableIterator<'static, (name!(policy_id, Vec<`u8`>), name!(asset_name, Vec<`u8`>), name!(amount, pgrx::AnyNumeric))>
+        </code>
+    </summary>
+
+    # Arguments
+
+    * `era` - Specifies the era during which the transaction containing this UTXO was executed.
+
+    * `utxo_cbor` - The UTxO data in CBOR format.
+
+    # Returns
+
+    An iterator over the asset values of the given UTxO data, where each asset value is represented as a tuple of the policy ID, asset name, and amount.
+
+    # Example
+
+    select utxo_asset_values("Era", "Cbor") from utxo;
+</details>
+
+<details>
+    <summary>
+        <code>utxo_policy_id_asset_values(
+    era: i32,
+    utxo_cbor: &[u8],
+    policy_id: &[u8],
+) -> TableIterator<'static, (name!(asset_name, Vec<u8>), name!(amount, pgrx::AnyNumeric))>
+        </code>
+    </summary>
+
+    # Arguments
+
+    * `era` - Specifies the era during which the transaction containing this UTXO was executed.
+
+    * `utxo_cbor` - The UTxO data in CBOR format.
+
+    * `policy_id` - The policy ID in byte array format.
+
+    # Returns
+
+    An iterator over the asset values of the given UTxO data associated with the specified policy ID, where each asset value is represented as a tuple of the asset name and amount.
+
+    # Example
+
+    select utxo_policy_id_asset_values("Era", "Cbor", encode('policy_hex', 'hex')) from utxo;
+</details>
+
+<details>
+    <summary>
+        <code>utxo_subject_amount(era: i32, utxo_cbor: &[u8], subject: &[u8]) -> pgrx::AnyNumeric
+        </code>
+    </summary>
+
+    # Arguments
+
+    * `era` - Specifies the era during which the transaction containing this UTXO was executed.
+
+    * `utxo_cbor` - The UTxO data in CBOR format.
+
+    * `subject` - The subject in byte array format.
+
+    # Returns
+
+    The amount associated with the given subject in the UTxO data.
+
+    # Example
+
+    select utxo_subject_amount("Era", "Cbor", encode('policy_id_asset_name_hex', 'hex')) from utxo;
+</details>
+
+<details>
+    <summary>
+        <code>utxo_plutus_data(era: i32, utxo_cbor: &[u8]) -> pgrx::Json
+        </code>
+    </summary>
+
+    # Arguments
+
+    * `era` - Specifies the era during which the transaction containing this UTXO was executed.
+
+    * `utxo_cbor` - The UTxO data in CBOR format.
+
+    # Returns
+
+    The Plutus data of the given UTxO data in canonical JSON format.
+
+    # Example
+
+    select utxo_plutus_data("Era", "Cbor") from utxo;
 </details>
 
 # FILTERS
