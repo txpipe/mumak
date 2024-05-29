@@ -22,7 +22,7 @@ RUN apt update && apt -y install \
     ccache \
     pkg-config \
     sudo \
-    postgresql-server-dev-16
+    postgresql-server-dev-$PG_MAJOR
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"

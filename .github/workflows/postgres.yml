@@ -19,10 +19,12 @@ jobs:
           - release_for: Linux-x86_64
             build_on: ubuntu-latest
             suffix: amd
+            image: ghcr.io/txpipe/mumak
 
           - release_for: Linux-arm64
             build_on: buildjet-2vcpu-ubuntu-2204-arm
             suffix: arm
+            image: ghcr.io/txpipe/mumak
 
     runs-on: ${{ matrix.build_on }}
 
@@ -42,7 +44,7 @@ jobs:
           context: .
           file: docker/Dockerfile.postgres
           push: true
-          tags: ghcr.io/txpipe/mumak:${{ github.sha }}-${{ matrix.suffix }}
+          tags: ${{ matrix.image }}:${{ github.sha }}-${{ matrix.suffix }}
 
   build-manifest:
     needs:
@@ -65,7 +67,7 @@ jobs:
       - uses: docker/metadata-action@v5
         id: metadata
         with:
-          images: ghcr.io/demeter-run/ext-mumak-postgres
+          images: ${{ matrix.image }}
 
       - uses: int128/docker-manifest-create-action@v2
         id: build
