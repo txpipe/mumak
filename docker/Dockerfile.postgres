@@ -1,0 +1,41 @@
+ARG PG_MAJOR=16
+FROM postgres:$PG_MAJOR AS build
+
+ARG UID=1000
+ARG GID=1000
+
+RUN usermod -u $UID postgres && groupmod -g $GID postgres
+RUN apt update && apt -y install \
+    curl \
+    git \
+    libclang-dev \
+    build-essential \
+    libreadline-dev \
+    zlib1g-dev \
+    flex \
+    bison \
+    libxml2-dev \
+    libxslt-dev \
+    libssl-dev \
+    libxml2-utils \
+    xsltproc \
+    ccache \
+    pkg-config \
+    sudo \
+    postgresql-server-dev-$PG_MAJOR
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+RUN cargo install --locked cargo-pgrx && cargo pgrx init --pg$PG_MAJOR /usr/lib/postgresql/$PG_MAJOR/bin/pg_config
+
+WORKDIR /source
+COPY ./extension ./extension
+
+RUN sudo chown -R postgres:postgres /source
+RUN cd ./extension && cargo pgrx install -r --pg-config /usr/lib/postgresql/$PG_MAJOR/bin/pg_config
+
+# Extract only compiled extensions
+FROM postgres:$PG_MAJOR
+COPY --from=build /usr/share/postgresql /usr/share/postgresql
+COPY --from=build /usr/lib/postgresql /usr/lib/postgresql

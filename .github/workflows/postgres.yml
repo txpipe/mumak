@@ -1,0 +1,81 @@
+name: Postgres
+
+on:
+  push:
+    branches:
+      - "main"
+      - ci/release-postgres
+    tags:
+      - 'v*'
+      - "docker/Dockerfile.postgres"
+
+jobs:
+  build-images:
+    continue-on-error: true
+
+    strategy:
+      matrix:
+        include:
+          - release_for: Linux-x86_64
+            build_on: ubuntu-latest
+            suffix: amd
+            image: ghcr.io/txpipe/mumak
+
+          - release_for: Linux-arm64
+            build_on: buildjet-2vcpu-ubuntu-2204-arm
+            suffix: arm
+            image: ghcr.io/txpipe/mumak
+
+    runs-on: ${{ matrix.build_on }}
+
+    steps:
+      - uses: actions/checkout@v2.3.3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: docker/Dockerfile.postgres
+          push: true
+          tags: ${{ matrix.image }}:${{ github.sha }}-${{ matrix.suffix }}
+
+  build-manifest:
+    needs:
+      - build-images
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        include:
+          - image: ghcr.io/txpipe/mumak
+
+    steps:
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/metadata-action@v5
+        id: metadata
+        with:
+          images: ${{ matrix.image }}
+
+      - uses: int128/docker-manifest-create-action@v2
+        id: build
+        with:
+          index-annotations: ${{ steps.metadata.outputs.labels }}
+          tags: |
+            {{ matrix.image }}:${{ github.ref }}
+            {{ matrix.image }}
+          sources: |
+            {{ matrix.image }}:${{ github.sha }}-amd
+            {{ matrix.image }}:${{ github.sha }}-arm
