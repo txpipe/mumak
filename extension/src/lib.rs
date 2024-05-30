@@ -5,16 +5,50 @@ use crate::era_ext::EraExt;
 use pallas::ledger::addresses::Address;
 use pallas::ledger::addresses::ByronAddress;
 use pallas::ledger::primitives::ToCanonicalJson;
+use pallas::ledger::traverse::MultiEraBlock;
 use pallas::ledger::traverse::MultiEraOutput;
 use pallas::ledger::traverse::MultiEraTx;
 use pgrx::prelude::*;
 use std::ops::Deref;
+use bech32::ToBase32;
 
 pgrx::pg_module_magic!();
 
 #[pg_extern]
 fn hello_extension() -> &'static str {
     "Hello, extension"
+}
+
+#[pg_extern]
+fn block_tx_count(block_cbor: &[u8]) -> i32 {
+    let block = match MultiEraBlock::decode(block_cbor) {
+        Ok(x) => x,
+        Err(_) => return -1,
+    };
+
+    block.tx_count() as i32
+}
+
+#[pg_extern]
+fn block_number(block_cbor: &[u8]) -> i64 {
+    let block = match MultiEraBlock::decode(block_cbor) {
+        Ok(x) => x,
+        Err(_) => return -1,
+    };
+
+    block.number() as i64
+}
+
+#[pg_extern]
+fn block_pool_id(block_cbor: &[u8]) -> Vec<u8> {
+    let block = match MultiEraBlock::decode(block_cbor) {
+        Ok(x) => x,
+        Err(_) => return vec![],
+    };
+    match block.header().issuer_vkey() {
+        Some(hash) => hash.to_vec(),
+        None => vec![],
+    }
 }
 
 /// Returns the hash of the given transaction data.
@@ -427,6 +461,14 @@ fn utxo_plutus_data(era: i32, utxo_cbor: &[u8]) -> pgrx::Json {
         pallas::ledger::primitives::conway::PseudoDatumOption::Data(d) => {
             pgrx::Json(d.unwrap().deref().to_json())
         }
+    }
+}
+
+#[pg_extern]
+fn to_bech32(hash: &[u8], hrp: &str) -> String {
+    match bech32::encode(hrp, &hash.to_base32(), bech32::Variant::Bech32) {
+        Ok(x) => x,
+        Err(_) => "".to_string(),
     }
 }
 
