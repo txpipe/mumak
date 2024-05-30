@@ -35,7 +35,7 @@ RUN su - postgres -c 'curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs 
 RUN echo 'export PATH="/var/lib/postgresql/.cargo/bin:${PATH}"' >> /var/lib/postgresql/.bashrc
 RUN echo 'export USER=postgres' >> /var/lib/postgresql/.bashrc
 
-RUN su - postgres -c 'cargo install --locked cargo-pgrx && cargo pgrx init'
+RUN su - postgres -c 'cargo install --locked cargo-pgrx@0.11.3 && cargo pgrx init'
 
 WORKDIR /source
 COPY ./extension ./
