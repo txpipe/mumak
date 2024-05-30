@@ -43,3 +43,5 @@ RUN sudo chown -R postgres:postgres /source
 RUN su - postgres -c 'cd /source && cargo pgrx install'
 
 COPY ./init-db.sh /docker-entrypoint-initdb.d/
+COPY ./data/latest_10k_blocks.csv /data/latest_10k_blocks.csv
+COPY ./data/latest_10k_transactions.csv /data/latest_10k_transactions.csv

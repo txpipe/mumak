@@ -21,7 +21,7 @@ RUN apt update && apt -y install \
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 
-RUN cargo install --locked cargo-pgrx && cargo pgrx init
+RUN cargo install --locked cargo-pgrx@0.11.3 && cargo pgrx init
 
 WORKDIR /source
 COPY ./extension ./
