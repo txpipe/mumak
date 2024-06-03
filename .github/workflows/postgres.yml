@@ -74,8 +74,8 @@ jobs:
         with:
           index-annotations: ${{ steps.metadata.outputs.labels }}
           tags: |
-            {{ matrix.image }}:${{ github.ref }}
-            {{ matrix.image }}
+            ${{ matrix.image }}:${{ github.sha }}
+            ${{ matrix.image }}
           sources: |
-            {{ matrix.image }}:${{ github.sha }}-amd
-            {{ matrix.image }}:${{ github.sha }}-arm
+            ${{ matrix.image }}:${{ github.sha }}-amd
+            ${{ matrix.image }}:${{ github.sha }}-arm
