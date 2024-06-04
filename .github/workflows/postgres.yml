@@ -22,7 +22,7 @@ jobs:
             image: ghcr.io/txpipe/mumak
 
           - release_for: Linux-arm64
-            build_on: buildjet-2vcpu-ubuntu-2204-arm
+            build_on: ubuntu-latest-arm
             suffix: arm
             image: ghcr.io/txpipe/mumak
 
