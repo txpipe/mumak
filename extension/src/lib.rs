@@ -5,16 +5,105 @@ use crate::era_ext::EraExt;
 use pallas::ledger::addresses::Address;
 use pallas::ledger::addresses::ByronAddress;
 use pallas::ledger::primitives::ToCanonicalJson;
+use pallas::ledger::traverse::MultiEraBlock;
 use pallas::ledger::traverse::MultiEraOutput;
 use pallas::ledger::traverse::MultiEraTx;
+use pallas::crypto::hash::Hasher;
+use pallas::ledger::traverse::wellknown::*;
 use pgrx::prelude::*;
 use std::ops::Deref;
+use bech32::{ToBase32, FromBase32};
 
 pgrx::pg_module_magic!();
 
 #[pg_extern]
 fn hello_extension() -> &'static str {
     "Hello, extension"
+}
+
+#[pg_extern]
+fn block_tx_count(block_cbor: &[u8]) -> i32 {
+    let block = match MultiEraBlock::decode(block_cbor) {
+        Ok(x) => x,
+        Err(_) => return -1,
+    };
+
+    block.tx_count() as i32
+}
+
+#[pg_extern]
+fn block_number(block_cbor: &[u8]) -> i64 {
+    let block = match MultiEraBlock::decode(block_cbor) {
+        Ok(x) => x,
+        Err(_) => return -1,
+    };
+
+    block.number() as i64
+}
+
+#[pg_extern]
+fn block_pool_id(block_cbor: &[u8]) -> Vec<u8> {
+    let block = match MultiEraBlock::decode(block_cbor) {
+        Ok(x) => x,
+        Err(_) => return vec![],
+    };
+    match block.header().issuer_vkey() {
+        Some(hash) => Hasher::<224>::hash(hash).to_vec(),
+        None => vec![],
+    }
+}
+
+#[pg_extern]
+fn block_has_pool_id(block_cbor: &[u8], pool_id: &[u8]) -> bool {
+    let block = match MultiEraBlock::decode(block_cbor) {
+        Ok(x) => x,
+        Err(_) => return false,
+    };
+
+    match block.header().issuer_vkey() {
+        Some(hash) => Hasher::<224>::hash(hash).to_vec() == pool_id,
+        None => false,
+    }
+}
+
+#[pg_extern]
+fn block_size(block_cbor: &[u8]) -> i64 {
+    let block = match MultiEraBlock::decode(block_cbor) {
+        Ok(x) => x,
+        Err(_) => return -1,
+    };
+
+    block.size() as i64
+}
+
+#[pg_extern]
+fn block_epoch(block_cbor: &[u8], network_id: i64) -> i64 {
+    let block = match MultiEraBlock::decode(block_cbor) {
+        Ok(x) => x,
+        Err(_) => return -1,
+    };
+
+    let genesis = match  GenesisValues::from_magic(network_id as u64) {
+        Some(x) => x,
+        None => return -1,
+    };
+
+    block.epoch(&genesis).0 as i64
+}
+
+#[pg_extern]
+fn block_is_epoch(block_cbor: &[u8], network_id: i64, epoch: i64) -> bool {
+    let block = match MultiEraBlock::decode(block_cbor) {
+        Ok(x) => x,
+        Err(_) => return false,
+    };
+
+    let genesis = match GenesisValues::from_magic(network_id as u64) {
+        Some(x) => x,
+        None => return false,
+    };
+
+    block.epoch(&genesis).0 == epoch as u64
 }
 
 /// Returns the hash of the given transaction data.
@@ -143,6 +232,18 @@ fn tx_plutus_data(tx_cbor: &[u8]) -> Vec<pgrx::Json> {
         .iter()
         .map(|x| pgrx::Json(x.to_json()))
         .collect()
+}
+
+#[pg_extern]
+fn tx_has_address(tx_cbor: &[u8], address: &[u8]) -> bool {
+    let tx = match MultiEraTx::decode(tx_cbor) {
+        Ok(x) => x,
+        Err(_) => return false,
+    };
+
+    tx.outputs()
+        .iter()
+        .any(|o| o.address().unwrap().to_vec().eq(&address))
 }
 
 #[pg_extern]
@@ -427,6 +528,22 @@ fn utxo_plutus_data(era: i32, utxo_cbor: &[u8]) -> pgrx::Json {
         pallas::ledger::primitives::conway::PseudoDatumOption::Data(d) => {
             pgrx::Json(d.unwrap().deref().to_json())
         }
+    }
+}
+
+#[pg_extern]
+fn to_bech32(hash: &[u8], hrp: &str) -> String {
+    match bech32::encode(hrp, &hash.to_base32(), bech32::Variant::Bech32) {
+        Ok(x) => x,
+        Err(_) => "".to_string(),
+    }
+}
+
+#[pg_extern]
+fn from_bech32(bech32: &str) -> Vec<u8> {
+    match bech32::decode(bech32) {
+        Ok((_,data,_)) => Vec::from_base32(&data).unwrap(),
+        Err(_) => vec![],
     }
 }
 
