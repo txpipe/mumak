@@ -2,17 +2,21 @@ mod era_ext;
 
 use crate::era_ext::EraExt;
 
+use bech32::{FromBase32, ToBase32};
+use chrono::{DateTime, Datelike, TimeZone, Timelike, Utc};
+use pallas::crypto::hash::Hasher;
 use pallas::ledger::addresses::Address;
 use pallas::ledger::addresses::ByronAddress;
+use pallas::ledger::addresses::StakeAddress;
 use pallas::ledger::primitives::ToCanonicalJson;
+use pallas::ledger::traverse::wellknown::*;
 use pallas::ledger::traverse::MultiEraBlock;
 use pallas::ledger::traverse::MultiEraOutput;
 use pallas::ledger::traverse::MultiEraTx;
-use pallas::crypto::hash::Hasher;
-use pallas::ledger::traverse::wellknown::*;
+use pallas::ledger::traverse::MultiEraWithdrawals;
 use pgrx::prelude::*;
+use std::collections::HashMap;
 use std::ops::Deref;
-use bech32::{ToBase32, FromBase32};
 
 pgrx::pg_module_magic!();
 
@@ -39,6 +43,16 @@ fn block_number(block_cbor: &[u8]) -> i64 {
     };
 
     block.number() as i64
+}
+
+#[pg_extern]
+fn block_slot(block_cbor: &[u8]) -> i64 {
+    let block = match MultiEraBlock::decode(block_cbor) {
+        Ok(x) => x,
+        Err(_) => return -1,
+    };
+
+    block.slot() as i64
 }
 
 #[pg_extern]
@@ -83,12 +97,41 @@ fn block_epoch(block_cbor: &[u8], network_id: i64) -> i64 {
         Err(_) => return -1,
     };
 
-    let genesis = match  GenesisValues::from_magic(network_id as u64) {
+    let genesis = match GenesisValues::from_magic(network_id as u64) {
         Some(x) => x,
         None => return -1,
     };
 
     block.epoch(&genesis).0 as i64
+}
+
+#[pg_extern]
+fn block_slot_as_time(block_cbor: &[u8], network_id: i64) -> pgrx::Timestamp {
+    let block = match MultiEraBlock::decode(block_cbor) {
+        Ok(x) => x,
+        Err(_) => return (-1).into(),
+    };
+
+    let genesis = match GenesisValues::from_magic(network_id as u64) {
+        Some(x) => x,
+        None => return (-1).into(),
+    };
+
+    let seconds = block.wallclock(&genesis) as i64;
+
+    let naive_datetime = DateTime::from_timestamp(seconds, 0)
+        .unwrap_or_else(|| DateTime::from_timestamp(0, 0).unwrap());
+
+    let year = naive_datetime.year();
+    let month = naive_datetime.month() as u8;
+    let day = naive_datetime.day() as u8;
+    let hour = naive_datetime.hour() as u8;
+    let minute = naive_datetime.minute() as u8;
+    let second = naive_datetime.second() as f64;
+
+    let timestamp = Timestamp::new(year, month, day, hour, minute, second).unwrap();
+
+    timestamp
 }
 
 #[pg_extern]
@@ -145,6 +188,69 @@ fn tx_inputs(tx_cbor: &[u8]) -> TableIterator<'static, (name!(hash, String), nam
         .collect::<Vec<_>>();
 
     TableIterator::new(inputs_data.into_iter())
+}
+
+#[pg_extern]
+fn tx_outputs(
+    tx_cbor: &[u8],
+) -> TableIterator<
+    'static,
+    (
+        name!(output_index, i32),
+        name!(address, Vec<u8>),
+        name!(lovelace, pgrx::AnyNumeric),
+        name!(assets, pgrx::Json),
+        name!(datum, pgrx::Json),
+    ),
+> {
+    let tx = match MultiEraTx::decode(tx_cbor) {
+        Ok(x) => x,
+        Err(_) => return TableIterator::new(std::iter::empty()),
+    };
+
+    let outputs_data = tx
+        .outputs()
+        .iter()
+        .enumerate()
+        .map(|(i, o)| {
+            (
+                i as i32,
+                o.address().unwrap().to_vec(),
+                AnyNumeric::from(o.lovelace_amount()),
+                pgrx::Json(
+                    serde_json::to_value(
+                        o.non_ada_assets()
+                            .iter()
+                            .map(|asset| {
+                                let policy_id = hex::encode(asset.policy().as_ref());
+                                let assets: HashMap<String, i128> = asset
+                                    .assets()
+                                    .iter()
+                                    .map(|a| (hex::encode(a.name()), a.any_coin()))
+                                    .collect();
+
+                                (policy_id, assets)
+                            })
+                            .collect::<HashMap<_, _>>(),
+                    )
+                    .unwrap(),
+                ),
+                match o.datum() {
+                    Some(d) => match d {
+                        pallas::ledger::primitives::conway::PseudoDatumOption::Hash(_) => {
+                            pgrx::Json(serde_json::json!(null))
+                        }
+                        pallas::ledger::primitives::conway::PseudoDatumOption::Data(d) => {
+                            pgrx::Json(d.unwrap().deref().to_json())
+                        }
+                    },
+                    None => pgrx::Json(serde_json::json!(null)),
+                },
+            )
+        })
+        .collect::<Vec<_>>();
+
+    TableIterator::new(outputs_data.into_iter())
 }
 
 #[pg_extern]
@@ -235,7 +341,163 @@ fn tx_plutus_data(tx_cbor: &[u8]) -> Vec<pgrx::Json> {
 }
 
 #[pg_extern]
-fn tx_has_address(tx_cbor: &[u8], address: &[u8]) -> bool {
+fn tx_total_lovelace(tx_cbor: &[u8]) -> pgrx::AnyNumeric {
+    let tx = match MultiEraTx::decode(tx_cbor) {
+        Ok(x) => x,
+        Err(_) => return AnyNumeric::from(0),
+    };
+
+    AnyNumeric::from(
+        tx.outputs()
+            .iter()
+            .map(|o| o.lovelace_amount())
+            .sum::<u64>(),
+    )
+}
+
+#[pg_extern]
+fn tx_fee(tx_cbor: &[u8]) -> pgrx::AnyNumeric {
+    let tx = match MultiEraTx::decode(tx_cbor) {
+        Ok(x) => x,
+        Err(_) => return AnyNumeric::from(0),
+    };
+    let fee = match tx.fee() {
+        Some(f) => f,
+        None => return AnyNumeric::from(0),
+    };
+    AnyNumeric::from(fee)
+}
+
+#[pg_extern]
+fn tx_mint(tx_cbor: &[u8]) -> pgrx::Json {
+    let tx = match MultiEraTx::decode(tx_cbor) {
+        Ok(x) => x,
+        Err(_) => return pgrx::Json(serde_json::json!(null)),
+    };
+
+    let mints = tx.mints();
+
+    pgrx::Json(
+        serde_json::to_value(
+            mints
+                .iter()
+                .map(|m| {
+                    let policy_id = hex::encode(m.policy().as_ref());
+                    let assets: HashMap<String, i128> = m
+                        .assets()
+                        .iter()
+                        .map(|a| (hex::encode(a.name()), a.any_coin()))
+                        .collect();
+
+                    (policy_id, assets)
+                })
+                .collect::<HashMap<_, _>>(),
+        )
+        .unwrap(),
+    )
+}
+
+#[pg_extern]
+fn tx_subject_amount_output(tx_cbor: &[u8], subject: &[u8]) -> pgrx::AnyNumeric {
+    let tx = match MultiEraTx::decode(tx_cbor) {
+        Ok(x) => x,
+        Err(_) => return AnyNumeric::from(0),
+    };
+
+    const POLICY_ID_LEN: usize = 28;
+    let (policy_id, asset_name) = subject.split_at(POLICY_ID_LEN);
+
+    let amount = tx
+        .outputs()
+        .iter()
+        .filter(|o| {
+            o.non_ada_assets().to_vec().iter().any(|a| {
+                a.policy().deref() == policy_id && a.assets().iter().any(|a| a.name() == asset_name)
+            })
+        })
+        .map(|o| {
+            o.non_ada_assets()
+                .to_vec()
+                .iter()
+                .flat_map(|a| {
+                    a.assets()
+                        .iter()
+                        .filter(|a| a.name() == asset_name)
+                        .map(|a| a.any_coin())
+                        .collect::<Vec<_>>()
+                })
+                .next()
+                .unwrap_or(0)
+        })
+        .sum::<i128>();
+
+    AnyNumeric::from(amount)
+}
+
+#[pg_extern]
+fn tx_subject_amount_mint(tx_cbor: &[u8], subject: &[u8]) -> pgrx::AnyNumeric {
+    let tx = match MultiEraTx::decode(tx_cbor) {
+        Ok(x) => x,
+        Err(_) => return AnyNumeric::from(0),
+    };
+
+    const POLICY_ID_LEN: usize = 28;
+    let (policy_id, asset_name) = subject.split_at(POLICY_ID_LEN);
+
+    let amount = tx
+        .mints()
+        .iter()
+        .filter(|m| {
+            m.assets().iter().any(|a| a.policy().deref() == policy_id && a.name() == asset_name)
+        })
+        .map(|m| {
+            m.assets()
+                .iter()
+                .filter(|a| a.name() == asset_name)
+                .map(|a| a.any_coin())
+                .sum::<i128>()
+        })
+        .sum::<i128>();
+
+    AnyNumeric::from(amount)
+}
+
+#[pg_extern]
+fn tx_withdrawals(tx_cbor: &[u8]) -> TableIterator<'static, (name!(stake_address, Vec<u8>), name!(amount, pgrx::AnyNumeric))> {
+    let tx = match MultiEraTx::decode(tx_cbor) {
+        Ok(x) => x,
+        Err(_) => return TableIterator::new(std::iter::empty()),
+    };
+
+    let withdrawals_data = match tx.withdrawals() {
+        MultiEraWithdrawals::AlonzoCompatible(w) => w.iter().map(|(k, v)| (k.to_vec(), AnyNumeric::from(*v))).collect::<Vec<_>>(),
+        _ => vec![],
+    };
+    TableIterator::new(withdrawals_data.into_iter())
+}
+
+#[pg_extern]
+fn tx_hash_is(tx_cbor: &[u8], hash: &[u8]) -> bool {
+    let tx = match MultiEraTx::decode(tx_cbor) {
+        Ok(x) => x,
+        Err(_) => return false,
+    };
+
+    tx.hash().to_vec().eq(&hash)
+}
+
+#[pg_extern]
+fn tx_has_mint(tx_cbor: &[u8]) -> bool {
+    let tx = match MultiEraTx::decode(tx_cbor) {
+        Ok(x) => x,
+        Err(_) => return false,
+    };
+
+    !tx.mints().is_empty()
+}
+
+#[pg_extern]
+fn tx_has_address_output(tx_cbor: &[u8], address: &[u8]) -> bool {
     let tx = match MultiEraTx::decode(tx_cbor) {
         Ok(x) => x,
         Err(_) => return false,
@@ -244,6 +506,63 @@ fn tx_has_address(tx_cbor: &[u8], address: &[u8]) -> bool {
     tx.outputs()
         .iter()
         .any(|o| o.address().unwrap().to_vec().eq(&address))
+}
+
+#[pg_extern]
+fn tx_has_policy_id_output(tx_cbor: &[u8], policy_id: &[u8]) -> bool {
+    let tx = match MultiEraTx::decode(tx_cbor) {
+        Ok(x) => x,
+        Err(_) => return false,
+    };
+
+    tx.outputs().iter().any(|o| {
+        o.non_ada_assets()
+            .to_vec()
+            .iter()
+            .any(|a| a.policy().deref().eq(&policy_id))
+    })
+}
+
+#[pg_extern]
+fn tx_has_policy_id_mint(tx_cbor: &[u8], policy_id: &[u8]) -> bool {
+    let tx = match MultiEraTx::decode(tx_cbor) {
+        Ok(x) => x,
+        Err(_) => return false,
+    };
+
+    tx.mints().iter().any(|m| m.policy().deref().eq(&policy_id))
+}
+
+#[pg_extern]
+fn tx_has_subject_output(tx_cbor: &[u8], subject: &[u8]) -> bool {
+    let tx = match MultiEraTx::decode(tx_cbor) {
+        Ok(x) => x,
+        Err(_) => return false,
+    };
+
+    const POLICY_ID_LEN: usize = 28;
+    let (policy_id, asset_name) = subject.split_at(POLICY_ID_LEN);
+
+    tx.outputs().iter().any(|o| {
+        o.non_ada_assets().to_vec().iter().any(|a| {
+            a.policy().deref() == policy_id && a.assets().iter().any(|a| a.name() == asset_name)
+        })
+    })
+}
+
+#[pg_extern]
+fn tx_has_mint_output(tx_cbor: &[u8], subject: &[u8]) -> bool {
+    let tx = match MultiEraTx::decode(tx_cbor) {
+        Ok(x) => x,
+        Err(_) => return false,
+    };
+
+    const POLICY_ID_LEN: usize = 28;
+    let (policy_id, asset_name) = subject.split_at(POLICY_ID_LEN);
+
+    tx.mints().iter().any(|m| {
+        m.assets().iter().any(|a| a.policy().deref() == policy_id && a.name() == asset_name)
+    })
 }
 
 #[pg_extern]
@@ -308,16 +627,45 @@ fn address_to_bytes(address: String) -> Vec<u8> {
 }
 
 #[pg_extern]
-fn address_bytes_to_bech32(address_bytes: &[u8]) -> String {
+fn address_to_bech32(address_bytes: &[u8]) -> String {
     let address = match Address::from_bytes(address_bytes) {
         Ok(x) => x,
-        Err(_) => return "".to_string(),
+        Err(_) => return String::new(),
     };
 
     match address.to_bech32() {
         Ok(x) => x,
         // @TODO: this is not bech32 though?
-        Err(_) => ByronAddress::from_bytes(address_bytes).unwrap().to_base58(), 
+        Err(_) => ByronAddress::from_bytes(address_bytes).unwrap().to_base58(),
+    }
+}
+
+#[pg_extern]
+fn address_to_stake_part_bech32(address_bytes: &[u8]) -> String {
+    let address = match Address::from_bytes(address_bytes) {
+        Ok(addr) => addr,
+        Err(_) => return String::new(),
+    };
+
+    match address {
+        Address::Shelley(a) => StakeAddress::try_from(a)
+            .map(|stake_addr| stake_addr.to_bech32().unwrap_or_else(|_| String::new()))
+            .unwrap_or_else(|_| String::new()),
+        Address::Byron(_) => String::new(),
+        _ => String::new(),
+    }
+}
+
+#[pg_extern]
+fn stake_part_to_bech32(stake_part_bytes: &[u8]) -> String {
+    let stake_part = match Address::from_bytes(stake_part_bytes) {
+        Ok(x) => x,
+        Err(_) => return String::new(),
+    };
+
+    match stake_part.to_bech32() {
+        Ok(x) => x,
+        Err(_) => String::new(),
     }
 }
 
@@ -337,7 +685,7 @@ fn utxo_address(era: i32, utxo_cbor: &[u8]) -> Vec<u8> {
 }
 
 #[pg_extern]
-fn utxo_has_policy_id_output(era: i32, utxo_cbor: &[u8], policy_id: &[u8]) -> bool {
+fn utxo_has_policy_id(era: i32, utxo_cbor: &[u8], policy_id: &[u8]) -> bool {
     let era_enum = match pallas::ledger::traverse::Era::from_int(era) {
         Some(x) => x,
         None => return false,
@@ -356,7 +704,7 @@ fn utxo_has_policy_id_output(era: i32, utxo_cbor: &[u8], policy_id: &[u8]) -> bo
 }
 
 #[pg_extern]
-fn utxo_has_address_output(era: i32, utxo_cbor: &[u8], address: &[u8]) -> bool {
+fn utxo_has_address(era: i32, utxo_cbor: &[u8], address: &[u8]) -> bool {
     let era_enum = match pallas::ledger::traverse::Era::from_int(era) {
         Some(x) => x,
         None => return false,
@@ -420,8 +768,15 @@ fn utxo_policy_id_asset_names(
 #[pg_extern]
 fn utxo_asset_values(
     era: i32,
-    utxo_cbor: &[u8]
-) -> TableIterator<'static, (name!(policy_id, Vec<u8>), name!(asset_name, Vec<u8>), name!(amount, pgrx::AnyNumeric))> {
+    utxo_cbor: &[u8],
+) -> TableIterator<
+    'static,
+    (
+        name!(policy_id, Vec<u8>),
+        name!(asset_name, Vec<u8>),
+        name!(amount, pgrx::AnyNumeric),
+    ),
+> {
     let era_enum = match pallas::ledger::traverse::Era::from_int(era) {
         Some(x) => x,
         None => return TableIterator::new(std::iter::empty()),
@@ -439,7 +794,13 @@ fn utxo_asset_values(
         .flat_map(|a| {
             a.assets()
                 .iter()
-                .map(|a| (a.policy().to_vec(), a.name().to_vec(), AnyNumeric::from(a.any_coin())))
+                .map(|a| {
+                    (
+                        a.policy().to_vec(),
+                        a.name().to_vec(),
+                        AnyNumeric::from(a.any_coin()),
+                    )
+                })
                 .collect::<Vec<_>>()
         })
         .collect::<Vec<_>>();
@@ -524,7 +885,9 @@ fn utxo_plutus_data(era: i32, utxo_cbor: &[u8]) -> pgrx::Json {
     };
 
     match output.datum().unwrap() {
-        pallas::ledger::primitives::conway::PseudoDatumOption::Hash(_) => pgrx::Json(serde_json::json!(null)),
+        pallas::ledger::primitives::conway::PseudoDatumOption::Hash(_) => {
+            pgrx::Json(serde_json::json!(null))
+        }
         pallas::ledger::primitives::conway::PseudoDatumOption::Data(d) => {
             pgrx::Json(d.unwrap().deref().to_json())
         }
@@ -542,7 +905,7 @@ fn to_bech32(hash: &[u8], hrp: &str) -> String {
 #[pg_extern]
 fn from_bech32(bech32: &str) -> Vec<u8> {
     match bech32::decode(bech32) {
-        Ok((_,data,_)) => Vec::from_base32(&data).unwrap(),
+        Ok((_, data, _)) => Vec::from_base32(&data).unwrap(),
         Err(_) => vec![],
     }
 }
