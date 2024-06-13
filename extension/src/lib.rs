@@ -3,7 +3,7 @@ mod era_ext;
 use crate::era_ext::EraExt;
 
 use bech32::{FromBase32, ToBase32};
-use chrono::{DateTime, Datelike, TimeZone, Timelike, Utc};
+use chrono::{DateTime, Datelike, Timelike};
 use pallas::crypto::hash::Hasher;
 use pallas::ledger::addresses::Address;
 use pallas::ledger::addresses::ByronAddress;
@@ -20,12 +20,12 @@ use std::ops::Deref;
 
 pgrx::pg_module_magic!();
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn hello_extension() -> &'static str {
     "Hello, extension"
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn block_tx_count(block_cbor: &[u8]) -> i32 {
     let block = match MultiEraBlock::decode(block_cbor) {
         Ok(x) => x,
@@ -35,7 +35,7 @@ fn block_tx_count(block_cbor: &[u8]) -> i32 {
     block.tx_count() as i32
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn block_number(block_cbor: &[u8]) -> i64 {
     let block = match MultiEraBlock::decode(block_cbor) {
         Ok(x) => x,
@@ -45,7 +45,7 @@ fn block_number(block_cbor: &[u8]) -> i64 {
     block.number() as i64
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn block_slot(block_cbor: &[u8]) -> i64 {
     let block = match MultiEraBlock::decode(block_cbor) {
         Ok(x) => x,
@@ -55,7 +55,7 @@ fn block_slot(block_cbor: &[u8]) -> i64 {
     block.slot() as i64
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn block_pool_id(block_cbor: &[u8]) -> Vec<u8> {
     let block = match MultiEraBlock::decode(block_cbor) {
         Ok(x) => x,
@@ -67,7 +67,7 @@ fn block_pool_id(block_cbor: &[u8]) -> Vec<u8> {
     }
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn block_has_pool_id(block_cbor: &[u8], pool_id: &[u8]) -> bool {
     let block = match MultiEraBlock::decode(block_cbor) {
         Ok(x) => x,
@@ -80,7 +80,7 @@ fn block_has_pool_id(block_cbor: &[u8], pool_id: &[u8]) -> bool {
     }
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn block_size(block_cbor: &[u8]) -> i64 {
     let block = match MultiEraBlock::decode(block_cbor) {
         Ok(x) => x,
@@ -90,7 +90,7 @@ fn block_size(block_cbor: &[u8]) -> i64 {
     block.size() as i64
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn block_epoch(block_cbor: &[u8], network_id: i64) -> i64 {
     let block = match MultiEraBlock::decode(block_cbor) {
         Ok(x) => x,
@@ -105,7 +105,7 @@ fn block_epoch(block_cbor: &[u8], network_id: i64) -> i64 {
     block.epoch(&genesis).0 as i64
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn block_slot_as_time(block_cbor: &[u8], network_id: i64) -> pgrx::Timestamp {
     let block = match MultiEraBlock::decode(block_cbor) {
         Ok(x) => x,
@@ -134,7 +134,7 @@ fn block_slot_as_time(block_cbor: &[u8], network_id: i64) -> pgrx::Timestamp {
     timestamp
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn block_is_epoch(block_cbor: &[u8], network_id: i64, epoch: i64) -> bool {
     let block = match MultiEraBlock::decode(block_cbor) {
         Ok(x) => x,
@@ -164,7 +164,7 @@ fn block_is_epoch(block_cbor: &[u8], network_id: i64, epoch: i64) -> bool {
 /// ```
 /// select tx_hash(body) from transactions;
 /// ```
-#[pg_extern]
+#[pg_extern(immutable)]
 fn tx_hash(tx_cbor: &[u8]) -> String {
     let tx = match MultiEraTx::decode(tx_cbor) {
         Ok(x) => x,
@@ -174,7 +174,7 @@ fn tx_hash(tx_cbor: &[u8]) -> String {
     tx.hash().to_string()
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn tx_inputs(tx_cbor: &[u8]) -> TableIterator<'static, (name!(hash, String), name!(index, i64))> {
     let tx = match MultiEraTx::decode(tx_cbor) {
         Ok(x) => x,
@@ -190,7 +190,7 @@ fn tx_inputs(tx_cbor: &[u8]) -> TableIterator<'static, (name!(hash, String), nam
     TableIterator::new(inputs_data.into_iter())
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn tx_outputs(
     tx_cbor: &[u8],
 ) -> TableIterator<
@@ -253,7 +253,7 @@ fn tx_outputs(
     TableIterator::new(outputs_data.into_iter())
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn tx_inputs_json(tx_cbor: &[u8]) -> pgrx::Json {
     let tx = match MultiEraTx::decode(tx_cbor) {
         Ok(x) => x,
@@ -271,7 +271,7 @@ fn tx_inputs_json(tx_cbor: &[u8]) -> pgrx::Json {
     )
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn tx_inputs_cbor(tx_cbor: &[u8]) -> Vec<u8> {
     let tx = match MultiEraTx::decode(tx_cbor) {
         Ok(x) => x,
@@ -288,7 +288,7 @@ fn tx_inputs_cbor(tx_cbor: &[u8]) -> Vec<u8> {
     encoded_inputs
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn tx_addresses(tx_cbor: &[u8]) -> SetOfIterator<'static, Vec<u8>> {
     let tx = match MultiEraTx::decode(tx_cbor) {
         Ok(x) => x,
@@ -304,7 +304,7 @@ fn tx_addresses(tx_cbor: &[u8]) -> SetOfIterator<'static, Vec<u8>> {
     SetOfIterator::new(outputs_data)
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn tx_addresses_json(tx_cbor: &[u8]) -> pgrx::Json {
     let tx = match MultiEraTx::decode(tx_cbor) {
         Ok(x) => x,
@@ -327,7 +327,7 @@ fn tx_addresses_json(tx_cbor: &[u8]) -> pgrx::Json {
     )
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn tx_plutus_data(tx_cbor: &[u8]) -> Vec<pgrx::Json> {
     let tx = match MultiEraTx::decode(tx_cbor) {
         Ok(x) => x,
@@ -340,7 +340,7 @@ fn tx_plutus_data(tx_cbor: &[u8]) -> Vec<pgrx::Json> {
         .collect()
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn tx_total_lovelace(tx_cbor: &[u8]) -> pgrx::AnyNumeric {
     let tx = match MultiEraTx::decode(tx_cbor) {
         Ok(x) => x,
@@ -355,7 +355,7 @@ fn tx_total_lovelace(tx_cbor: &[u8]) -> pgrx::AnyNumeric {
     )
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn tx_fee(tx_cbor: &[u8]) -> pgrx::AnyNumeric {
     let tx = match MultiEraTx::decode(tx_cbor) {
         Ok(x) => x,
@@ -368,7 +368,7 @@ fn tx_fee(tx_cbor: &[u8]) -> pgrx::AnyNumeric {
     AnyNumeric::from(fee)
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn tx_mint(tx_cbor: &[u8]) -> pgrx::Json {
     let tx = match MultiEraTx::decode(tx_cbor) {
         Ok(x) => x,
@@ -397,7 +397,7 @@ fn tx_mint(tx_cbor: &[u8]) -> pgrx::Json {
     )
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn tx_subject_amount_output(tx_cbor: &[u8], subject: &[u8]) -> pgrx::AnyNumeric {
     let tx = match MultiEraTx::decode(tx_cbor) {
         Ok(x) => x,
@@ -434,7 +434,7 @@ fn tx_subject_amount_output(tx_cbor: &[u8], subject: &[u8]) -> pgrx::AnyNumeric 
     AnyNumeric::from(amount)
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn tx_subject_amount_mint(tx_cbor: &[u8], subject: &[u8]) -> pgrx::AnyNumeric {
     let tx = match MultiEraTx::decode(tx_cbor) {
         Ok(x) => x,
@@ -462,7 +462,7 @@ fn tx_subject_amount_mint(tx_cbor: &[u8], subject: &[u8]) -> pgrx::AnyNumeric {
     AnyNumeric::from(amount)
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn tx_withdrawals(tx_cbor: &[u8]) -> TableIterator<'static, (name!(stake_address, Vec<u8>), name!(amount, pgrx::AnyNumeric))> {
     let tx = match MultiEraTx::decode(tx_cbor) {
         Ok(x) => x,
@@ -476,7 +476,7 @@ fn tx_withdrawals(tx_cbor: &[u8]) -> TableIterator<'static, (name!(stake_address
     TableIterator::new(withdrawals_data.into_iter())
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn tx_hash_is(tx_cbor: &[u8], hash: &[u8]) -> bool {
     let tx = match MultiEraTx::decode(tx_cbor) {
         Ok(x) => x,
@@ -486,7 +486,7 @@ fn tx_hash_is(tx_cbor: &[u8], hash: &[u8]) -> bool {
     tx.hash().to_vec().eq(&hash)
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn tx_has_mint(tx_cbor: &[u8]) -> bool {
     let tx = match MultiEraTx::decode(tx_cbor) {
         Ok(x) => x,
@@ -496,7 +496,7 @@ fn tx_has_mint(tx_cbor: &[u8]) -> bool {
     !tx.mints().is_empty()
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn tx_has_address_output(tx_cbor: &[u8], address: &[u8]) -> bool {
     let tx = match MultiEraTx::decode(tx_cbor) {
         Ok(x) => x,
@@ -508,7 +508,7 @@ fn tx_has_address_output(tx_cbor: &[u8], address: &[u8]) -> bool {
         .any(|o| o.address().unwrap().to_vec().eq(&address))
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn tx_has_policy_id_output(tx_cbor: &[u8], policy_id: &[u8]) -> bool {
     let tx = match MultiEraTx::decode(tx_cbor) {
         Ok(x) => x,
@@ -523,7 +523,7 @@ fn tx_has_policy_id_output(tx_cbor: &[u8], policy_id: &[u8]) -> bool {
     })
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn tx_has_policy_id_mint(tx_cbor: &[u8], policy_id: &[u8]) -> bool {
     let tx = match MultiEraTx::decode(tx_cbor) {
         Ok(x) => x,
@@ -533,7 +533,7 @@ fn tx_has_policy_id_mint(tx_cbor: &[u8], policy_id: &[u8]) -> bool {
     tx.mints().iter().any(|m| m.policy().deref().eq(&policy_id))
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn tx_has_subject_output(tx_cbor: &[u8], subject: &[u8]) -> bool {
     let tx = match MultiEraTx::decode(tx_cbor) {
         Ok(x) => x,
@@ -550,7 +550,7 @@ fn tx_has_subject_output(tx_cbor: &[u8], subject: &[u8]) -> bool {
     })
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn tx_has_mint_output(tx_cbor: &[u8], subject: &[u8]) -> bool {
     let tx = match MultiEraTx::decode(tx_cbor) {
         Ok(x) => x,
@@ -565,7 +565,7 @@ fn tx_has_mint_output(tx_cbor: &[u8], subject: &[u8]) -> bool {
     })
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn address_network_id(address: &[u8]) -> i64 {
     let address = match Address::from_bytes(address) {
         Ok(x) => x,
@@ -580,7 +580,7 @@ fn address_network_id(address: &[u8]) -> i64 {
     network_id
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn address_payment_part(address: &[u8]) -> Vec<u8> {
     let address = match Address::from_bytes(address) {
         Ok(x) => x,
@@ -598,7 +598,7 @@ fn address_payment_part(address: &[u8]) -> Vec<u8> {
     payment_part
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn address_stake_part(address: &[u8]) -> Vec<u8> {
     let address = match Address::from_bytes(address) {
         Ok(x) => x,
@@ -616,7 +616,7 @@ fn address_stake_part(address: &[u8]) -> Vec<u8> {
     stake_part
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn address_to_bytes(address: String) -> Vec<u8> {
     let address = match Address::from_bech32(&address) {
         Ok(x) => x,
@@ -626,7 +626,7 @@ fn address_to_bytes(address: String) -> Vec<u8> {
     address.to_vec()
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn address_to_bech32(address_bytes: &[u8]) -> String {
     let address = match Address::from_bytes(address_bytes) {
         Ok(x) => x,
@@ -640,7 +640,7 @@ fn address_to_bech32(address_bytes: &[u8]) -> String {
     }
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn address_to_stake_part_bech32(address_bytes: &[u8]) -> String {
     let address = match Address::from_bytes(address_bytes) {
         Ok(addr) => addr,
@@ -656,7 +656,7 @@ fn address_to_stake_part_bech32(address_bytes: &[u8]) -> String {
     }
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn stake_part_to_bech32(stake_part_bytes: &[u8]) -> String {
     let stake_part = match Address::from_bytes(stake_part_bytes) {
         Ok(x) => x,
@@ -669,7 +669,7 @@ fn stake_part_to_bech32(stake_part_bytes: &[u8]) -> String {
     }
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn utxo_address(era: i32, utxo_cbor: &[u8]) -> Vec<u8> {
     let era_enum = match pallas::ledger::traverse::Era::from_int(era) {
         Some(x) => x,
@@ -684,7 +684,7 @@ fn utxo_address(era: i32, utxo_cbor: &[u8]) -> Vec<u8> {
     output.address().unwrap().to_vec()
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn utxo_has_policy_id(era: i32, utxo_cbor: &[u8], policy_id: &[u8]) -> bool {
     let era_enum = match pallas::ledger::traverse::Era::from_int(era) {
         Some(x) => x,
@@ -703,7 +703,7 @@ fn utxo_has_policy_id(era: i32, utxo_cbor: &[u8], policy_id: &[u8]) -> bool {
         .any(|a| a.policy().deref().eq(&policy_id))
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn utxo_has_address(era: i32, utxo_cbor: &[u8], address: &[u8]) -> bool {
     let era_enum = match pallas::ledger::traverse::Era::from_int(era) {
         Some(x) => x,
@@ -718,7 +718,7 @@ fn utxo_has_address(era: i32, utxo_cbor: &[u8], address: &[u8]) -> bool {
     output.address().unwrap().to_vec().eq(&address)
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn utxo_lovelace(era: i32, utxo_cbor: &[u8]) -> pgrx::AnyNumeric {
     let era_enum = match pallas::ledger::traverse::Era::from_int(era) {
         Some(x) => x,
@@ -733,7 +733,7 @@ fn utxo_lovelace(era: i32, utxo_cbor: &[u8]) -> pgrx::AnyNumeric {
     AnyNumeric::from(output.lovelace_amount())
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn utxo_policy_id_asset_names(
     era: i32,
     utxo_cbor: &[u8],
@@ -765,7 +765,7 @@ fn utxo_policy_id_asset_names(
     SetOfIterator::new(asset_names)
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn utxo_asset_values(
     era: i32,
     utxo_cbor: &[u8],
@@ -808,7 +808,7 @@ fn utxo_asset_values(
     TableIterator::new(asset_values.into_iter())
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn utxo_policy_id_asset_values(
     era: i32,
     utxo_cbor: &[u8],
@@ -840,7 +840,7 @@ fn utxo_policy_id_asset_values(
     TableIterator::new(asset_values.into_iter())
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn utxo_subject_amount(era: i32, utxo_cbor: &[u8], subject: &[u8]) -> pgrx::AnyNumeric {
     let era_enum = match pallas::ledger::traverse::Era::from_int(era) {
         Some(x) => x,
@@ -872,7 +872,7 @@ fn utxo_subject_amount(era: i32, utxo_cbor: &[u8], subject: &[u8]) -> pgrx::AnyN
     AnyNumeric::from(amount)
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn utxo_plutus_data(era: i32, utxo_cbor: &[u8]) -> pgrx::Json {
     let era_enum = match pallas::ledger::traverse::Era::from_int(era) {
         Some(x) => x,
@@ -894,7 +894,7 @@ fn utxo_plutus_data(era: i32, utxo_cbor: &[u8]) -> pgrx::Json {
     }
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn to_bech32(hash: &[u8], hrp: &str) -> String {
     match bech32::encode(hrp, &hash.to_base32(), bech32::Variant::Bech32) {
         Ok(x) => x,
@@ -902,7 +902,7 @@ fn to_bech32(hash: &[u8], hrp: &str) -> String {
     }
 }
 
-#[pg_extern]
+#[pg_extern(immutable)]
 fn from_bech32(bech32: &str) -> Vec<u8> {
     match bech32::decode(bech32) {
         Ok((_, data, _)) => Vec::from_base32(&data).unwrap(),
