@@ -191,6 +191,24 @@ fn tx_inputs(tx_cbor: &[u8]) -> TableIterator<'static, (name!(hash, String), nam
 }
 
 #[pg_extern(immutable)]
+fn tx_inputs_json(tx_cbor: &[u8]) -> pgrx::JsonB {
+    let tx = match MultiEraTx::decode(tx_cbor) {
+        Ok(x) => x,
+        Err(_) => return pgrx::JsonB(serde_json::json!([])),
+    };
+
+    let inputs: Vec<serde_json::Value> = tx.inputs()
+        .iter()
+        .map(|i| serde_json::json!({
+            "hash": i.hash().to_string(),
+            "index": i.index()
+        }))
+        .collect();
+
+    pgrx::JsonB(serde_json::to_value(inputs).unwrap())
+}
+
+#[pg_extern(immutable)]
 fn tx_outputs(
     tx_cbor: &[u8],
 ) -> TableIterator<
@@ -237,8 +255,8 @@ fn tx_outputs(
                 ),
                 match o.datum() {
                     Some(d) => match d {
-                        pallas::ledger::primitives::conway::PseudoDatumOption::Hash(_) => {
-                            pgrx::Json(serde_json::json!(null))
+                        pallas::ledger::primitives::conway::PseudoDatumOption::Hash(h) => {
+                            pgrx::Json(serde_json::json!(h))
                         }
                         pallas::ledger::primitives::conway::PseudoDatumOption::Data(d) => {
                             pgrx::Json(d.unwrap().deref().to_json())
@@ -254,38 +272,51 @@ fn tx_outputs(
 }
 
 #[pg_extern(immutable)]
-fn tx_inputs_json(tx_cbor: &[u8]) -> pgrx::Json {
+fn tx_outputs_json(tx_cbor: &[u8]) -> pgrx::JsonB {
     let tx = match MultiEraTx::decode(tx_cbor) {
         Ok(x) => x,
-        Err(_) => return pgrx::Json(serde_json::to_value(vec![""]).unwrap()),
+        Err(_) => return pgrx::JsonB(serde_json::json!([])),
     };
 
-    pgrx::Json(
-        serde_json::to_value(
-            tx.inputs()
-                .iter()
-                .map(|i| (i.hash().to_string(), i.index()))
-                .collect::<Vec<(String, u64)>>(),
-        )
-        .unwrap(),
-    )
-}
-
-#[pg_extern(immutable)]
-fn tx_inputs_cbor(tx_cbor: &[u8]) -> Vec<u8> {
-    let tx = match MultiEraTx::decode(tx_cbor) {
-        Ok(x) => x,
-        Err(_) => return vec![],
-    };
-
-    let inputs = tx
-        .inputs()
+    let outputs_data: Vec<serde_json::Value> = tx
+        .outputs()
         .iter()
-        .map(|i| (i.hash().to_string(), i.index()))
-        .collect::<Vec<_>>();
-    let mut encoded_inputs: Vec<u8> = Vec::new();
-    pallas::codec::minicbor::encode(&inputs, &mut encoded_inputs).unwrap();
-    encoded_inputs
+        .enumerate()
+        .map(|(i, o)| {
+            serde_json::json!({
+                "output_index": i as i32,
+                "address": match o.address().unwrap().to_bech32() {
+                    Ok(address) => address,
+                    Err(_) => ByronAddress::from_bytes(&o.address().unwrap().to_vec()).unwrap().to_base58(),
+                },
+                "lovelace": o.lovelace_amount().to_string(),
+                "assets": o.non_ada_assets()
+                    .iter()
+                    .map(|asset| {
+                        let policy_id = hex::encode(asset.policy().as_ref());
+                        let assets: HashMap<String, String> = asset
+                            .assets()
+                            .iter()
+                            .map(|a| (hex::encode(a.name()), a.any_coin().to_string()))
+                            .collect();
+
+                        (policy_id, assets)
+                    })
+                    .collect::<HashMap<_, _>>(),
+                "datum": match o.datum() {
+                    Some(d) => match d {
+                        pallas::ledger::primitives::conway::PseudoDatumOption::Hash(h) => 
+                            serde_json::json!(h),
+                        pallas::ledger::primitives::conway::PseudoDatumOption::Data(d) => 
+                            d.unwrap().deref().to_json(),
+                    },
+                    None => serde_json::json!(null),
+                },
+            })
+        })
+        .collect();
+
+    pgrx::JsonB(serde_json::json!(outputs_data))
 }
 
 #[pg_extern(immutable)]
@@ -305,13 +336,13 @@ fn tx_addresses(tx_cbor: &[u8]) -> SetOfIterator<'static, Vec<u8>> {
 }
 
 #[pg_extern(immutable)]
-fn tx_addresses_json(tx_cbor: &[u8]) -> pgrx::Json {
+fn tx_addresses_json(tx_cbor: &[u8]) -> pgrx::JsonB {
     let tx = match MultiEraTx::decode(tx_cbor) {
         Ok(x) => x,
-        Err(_) => return pgrx::Json(serde_json::to_value(vec![""]).unwrap()),
+        Err(_) =>  return pgrx::JsonB(serde_json::json!([])),
     };
 
-    pgrx::Json(
+    pgrx::JsonB(
         serde_json::to_value(
             tx.outputs()
                 .iter()
@@ -328,20 +359,22 @@ fn tx_addresses_json(tx_cbor: &[u8]) -> pgrx::Json {
 }
 
 #[pg_extern(immutable)]
-fn tx_plutus_data(tx_cbor: &[u8]) -> Vec<pgrx::Json> {
+fn tx_plutus_data(tx_cbor: &[u8]) -> pgrx::JsonB {
     let tx = match MultiEraTx::decode(tx_cbor) {
         Ok(x) => x,
-        Err(_) => return vec![],
+        Err(_) => return pgrx::JsonB(serde_json::json!([])),
     };
 
-    tx.plutus_data()
+    let plutus_data: Vec<serde_json::Value> = tx.plutus_data()
         .iter()
-        .map(|x| pgrx::Json(x.to_json()))
-        .collect()
+        .map(|x| x.to_json())
+        .collect();
+
+    pgrx::JsonB(serde_json::json!(plutus_data))
 }
 
 #[pg_extern(immutable)]
-fn tx_total_lovelace(tx_cbor: &[u8]) -> pgrx::AnyNumeric {
+fn tx_lovelace(tx_cbor: &[u8]) -> pgrx::AnyNumeric {
     let tx = match MultiEraTx::decode(tx_cbor) {
         Ok(x) => x,
         Err(_) => return AnyNumeric::from(0),
@@ -369,32 +402,29 @@ fn tx_fee(tx_cbor: &[u8]) -> pgrx::AnyNumeric {
 }
 
 #[pg_extern(immutable)]
-fn tx_mint(tx_cbor: &[u8]) -> pgrx::Json {
+fn tx_mint(tx_cbor: &[u8]) -> pgrx::JsonB {
     let tx = match MultiEraTx::decode(tx_cbor) {
         Ok(x) => x,
-        Err(_) => return pgrx::Json(serde_json::json!(null)),
+        Err(_) => return pgrx::JsonB(serde_json::json!(null)),
     };
 
     let mints = tx.mints();
 
-    pgrx::Json(
-        serde_json::to_value(
-            mints
+    let mint_data: HashMap<String, HashMap<String, String>> = mints
+        .iter()
+        .map(|m| {
+            let policy_id = hex::encode(m.policy().as_ref());
+            let assets: HashMap<String, String> = m
+                .assets()
                 .iter()
-                .map(|m| {
-                    let policy_id = hex::encode(m.policy().as_ref());
-                    let assets: HashMap<String, i128> = m
-                        .assets()
-                        .iter()
-                        .map(|a| (hex::encode(a.name()), a.any_coin()))
-                        .collect();
+                .map(|a| (hex::encode(a.name()), a.any_coin().to_string()))
+                .collect();
 
-                    (policy_id, assets)
-                })
-                .collect::<HashMap<_, _>>(),
-        )
-        .unwrap(),
-    )
+            (policy_id, assets)
+        })
+        .collect();
+
+    pgrx::JsonB(serde_json::json!(mint_data))
 }
 
 #[pg_extern(immutable)]
@@ -474,6 +504,24 @@ fn tx_withdrawals(tx_cbor: &[u8]) -> TableIterator<'static, (name!(stake_address
         _ => vec![],
     };
     TableIterator::new(withdrawals_data.into_iter())
+}
+
+#[pg_extern(immutable)]
+fn tx_withdrawals_json(tx_cbor: &[u8]) -> pgrx::JsonB {
+    let tx = match MultiEraTx::decode(tx_cbor) {
+        Ok(x) => x,
+        Err(_) => return pgrx::JsonB(serde_json::json!({})),
+    };
+
+    let withdrawals_data: HashMap<String, String> = match tx.withdrawals() {
+        MultiEraWithdrawals::AlonzoCompatible(w) => w
+            .iter()
+            .map(|(k, v)| (hex::encode(k.to_vec()), v.to_string()))
+            .collect(),
+        _ => HashMap::new(),
+    };
+
+    pgrx::JsonB(serde_json::json!(withdrawals_data))
 }
 
 #[pg_extern(immutable)]
