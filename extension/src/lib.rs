@@ -175,37 +175,19 @@ fn tx_hash(tx_cbor: &[u8]) -> String {
 }
 
 #[pg_extern(immutable)]
-fn tx_inputs(tx_cbor: &[u8]) -> TableIterator<'static, (name!(hash, String), name!(index, i64))> {
+fn tx_inputs(tx_cbor: &[u8]) -> Vec<Option<String>> {
     let tx = match MultiEraTx::decode(tx_cbor) {
         Ok(x) => x,
-        Err(_) => return TableIterator::new(std::iter::empty()),
+        Err(_) => return vec![],
     };
 
     let inputs_data = tx
         .inputs()
         .iter()
-        .map(|i| (i.hash().to_string(), i.index() as i64))
-        .collect::<Vec<_>>();
+        .map(|i| Some(format!("{}#{}", i.hash(), i.index())))
+        .collect::<Vec<Option<String>>>();
 
-    TableIterator::new(inputs_data.into_iter())
-}
-
-#[pg_extern(immutable)]
-fn tx_inputs_json(tx_cbor: &[u8]) -> pgrx::JsonB {
-    let tx = match MultiEraTx::decode(tx_cbor) {
-        Ok(x) => x,
-        Err(_) => return pgrx::JsonB(serde_json::json!([])),
-    };
-
-    let inputs: Vec<serde_json::Value> = tx.inputs()
-        .iter()
-        .map(|i| serde_json::json!({
-            "hash": i.hash().to_string(),
-            "index": i.index()
-        }))
-        .collect();
-
-    pgrx::JsonB(serde_json::to_value(inputs).unwrap())
+    inputs_data
 }
 
 #[pg_extern(immutable)]
@@ -285,10 +267,7 @@ fn tx_outputs_json(tx_cbor: &[u8]) -> pgrx::JsonB {
         .map(|(i, o)| {
             serde_json::json!({
                 "output_index": i as i32,
-                "address": match o.address().unwrap().to_bech32() {
-                    Ok(address) => address,
-                    Err(_) => ByronAddress::from_bytes(&o.address().unwrap().to_vec()).unwrap().to_base58(),
-                },
+                "address": o.address().unwrap().to_string(),
                 "lovelace": o.lovelace_amount().to_string(),
                 "assets": o.non_ada_assets()
                     .iter()
@@ -320,42 +299,19 @@ fn tx_outputs_json(tx_cbor: &[u8]) -> pgrx::JsonB {
 }
 
 #[pg_extern(immutable)]
-fn tx_addresses(tx_cbor: &[u8]) -> SetOfIterator<'static, Vec<u8>> {
+fn tx_addresses(tx_cbor: &[u8]) -> Vec<Option<String>> {
     let tx = match MultiEraTx::decode(tx_cbor) {
         Ok(x) => x,
-        Err(_) => return SetOfIterator::new(std::iter::empty()),
+        Err(_) => return vec![],
     };
 
     let outputs_data = tx
         .outputs()
         .iter()
-        .map(|o| o.address().unwrap().to_vec())
+        .map(|o| o.address().ok().map(|addr| addr.to_string()))
         .collect::<Vec<_>>();
 
-    SetOfIterator::new(outputs_data)
-}
-
-#[pg_extern(immutable)]
-fn tx_addresses_json(tx_cbor: &[u8]) -> pgrx::JsonB {
-    let tx = match MultiEraTx::decode(tx_cbor) {
-        Ok(x) => x,
-        Err(_) =>  return pgrx::JsonB(serde_json::json!([])),
-    };
-
-    pgrx::JsonB(
-        serde_json::to_value(
-            tx.outputs()
-                .iter()
-                .map(|o| match o.address().unwrap().to_bech32() {
-                    Ok(address) => address,
-                    Err(_) => ByronAddress::from_bytes(&o.address().unwrap().to_vec())
-                        .unwrap()
-                        .to_base58(),
-                })
-                .collect::<Vec<String>>(),
-        )
-        .unwrap(),
-    )
+    outputs_data
 }
 
 #[pg_extern(immutable)]
