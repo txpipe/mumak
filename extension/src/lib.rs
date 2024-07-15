@@ -197,7 +197,7 @@ fn tx_outputs(
     'static,
     (
         name!(output_index, i32),
-        name!(address, Vec<u8>),
+        name!(address, String),
         name!(lovelace, pgrx::AnyNumeric),
         name!(assets, pgrx::Json),
         name!(datum, pgrx::Json),
@@ -215,7 +215,10 @@ fn tx_outputs(
         .map(|(i, o)| {
             (
                 i as i32,
-                o.address().unwrap().to_vec(),
+                match o.address() {
+                    Ok(addr) => addr.to_string(),
+                    Err(_) => "ERROR PARSING ADDRESS".to_string(),
+                },
                 AnyNumeric::from(o.lovelace_amount()),
                 pgrx::Json(
                     serde_json::to_value(
@@ -267,7 +270,10 @@ fn tx_outputs_json(tx_cbor: &[u8]) -> pgrx::JsonB {
         .map(|(i, o)| {
             serde_json::json!({
                 "output_index": i as i32,
-                "address": o.address().unwrap().to_string(),
+                "address": match o.address() {
+                    Ok(addr) => addr.to_string(),
+                    Err(_) => "ERROR PARSING ADDRESS".to_string(),
+                },
                 "lovelace": o.lovelace_amount().to_string(),
                 "assets": o.non_ada_assets()
                     .iter()
@@ -284,9 +290,9 @@ fn tx_outputs_json(tx_cbor: &[u8]) -> pgrx::JsonB {
                     .collect::<HashMap<_, _>>(),
                 "datum": match o.datum() {
                     Some(d) => match d {
-                        pallas::ledger::primitives::conway::PseudoDatumOption::Hash(h) => 
+                        pallas::ledger::primitives::conway::PseudoDatumOption::Hash(h) =>
                             serde_json::json!(h),
-                        pallas::ledger::primitives::conway::PseudoDatumOption::Data(d) => 
+                        pallas::ledger::primitives::conway::PseudoDatumOption::Data(d) =>
                             d.unwrap().deref().to_json(),
                     },
                     None => serde_json::json!(null),
@@ -321,10 +327,8 @@ fn tx_plutus_data(tx_cbor: &[u8]) -> pgrx::JsonB {
         Err(_) => return pgrx::JsonB(serde_json::json!([])),
     };
 
-    let plutus_data: Vec<serde_json::Value> = tx.plutus_data()
-        .iter()
-        .map(|x| x.to_json())
-        .collect();
+    let plutus_data: Vec<serde_json::Value> =
+        tx.plutus_data().iter().map(|x| x.to_json()).collect();
 
     pgrx::JsonB(serde_json::json!(plutus_data))
 }
@@ -434,7 +438,9 @@ fn tx_subject_amount_mint(tx_cbor: &[u8], subject: &[u8]) -> pgrx::AnyNumeric {
         .mints()
         .iter()
         .filter(|m| {
-            m.assets().iter().any(|a| a.policy().deref() == policy_id && a.name() == asset_name)
+            m.assets()
+                .iter()
+                .any(|a| a.policy().deref() == policy_id && a.name() == asset_name)
         })
         .map(|m| {
             m.assets()
@@ -449,14 +455,25 @@ fn tx_subject_amount_mint(tx_cbor: &[u8], subject: &[u8]) -> pgrx::AnyNumeric {
 }
 
 #[pg_extern(immutable)]
-fn tx_withdrawals(tx_cbor: &[u8]) -> TableIterator<'static, (name!(stake_address, Vec<u8>), name!(amount, pgrx::AnyNumeric))> {
+fn tx_withdrawals(
+    tx_cbor: &[u8],
+) -> TableIterator<
+    'static,
+    (
+        name!(stake_address, Vec<u8>),
+        name!(amount, pgrx::AnyNumeric),
+    ),
+> {
     let tx = match MultiEraTx::decode(tx_cbor) {
         Ok(x) => x,
         Err(_) => return TableIterator::new(std::iter::empty()),
     };
 
     let withdrawals_data = match tx.withdrawals() {
-        MultiEraWithdrawals::AlonzoCompatible(w) => w.iter().map(|(k, v)| (k.to_vec(), AnyNumeric::from(*v))).collect::<Vec<_>>(),
+        MultiEraWithdrawals::AlonzoCompatible(w) => w
+            .iter()
+            .map(|(k, v)| (k.to_vec(), AnyNumeric::from(*v)))
+            .collect::<Vec<_>>(),
         _ => vec![],
     };
     TableIterator::new(withdrawals_data.into_iter())
@@ -507,9 +524,12 @@ fn tx_has_address_output(tx_cbor: &[u8], address: &[u8]) -> bool {
         Err(_) => return false,
     };
 
-    tx.outputs()
-        .iter()
-        .any(|o| o.address().unwrap().to_vec().eq(&address))
+    tx.outputs().iter().any(|o| {
+        o.address()
+            .ok()
+            .map(|iter_address| iter_address.to_vec().eq(address))
+            .unwrap_or(false)
+    })
 }
 
 #[pg_extern(immutable)]
@@ -565,7 +585,9 @@ fn tx_has_mint_output(tx_cbor: &[u8], subject: &[u8]) -> bool {
     let (policy_id, asset_name) = subject.split_at(POLICY_ID_LEN);
 
     tx.mints().iter().any(|m| {
-        m.assets().iter().any(|a| a.policy().deref() == policy_id && a.name() == asset_name)
+        m.assets()
+            .iter()
+            .any(|a| a.policy().deref() == policy_id && a.name() == asset_name)
     })
 }
 
@@ -674,18 +696,18 @@ fn stake_part_to_bech32(stake_part_bytes: &[u8]) -> String {
 }
 
 #[pg_extern(immutable)]
-fn utxo_address(era: i32, utxo_cbor: &[u8]) -> Vec<u8> {
+fn utxo_address(era: i32, utxo_cbor: &[u8]) -> Option<Vec<u8>> {
     let era_enum = match pallas::ledger::traverse::Era::from_int(era) {
         Some(x) => x,
-        None => return vec![],
+        None => return Some(vec![]),
     };
 
     let output = match MultiEraOutput::decode(era_enum, utxo_cbor) {
         Ok(x) => x,
-        Err(_) => return vec![],
+        Err(_) => return Some(vec![]),
     };
 
-    output.address().unwrap().to_vec()
+    output.address().ok().map(|address| address.to_vec())
 }
 
 #[pg_extern(immutable)]
@@ -719,7 +741,11 @@ fn utxo_has_address(era: i32, utxo_cbor: &[u8], address: &[u8]) -> bool {
         Err(_) => return false,
     };
 
-    output.address().unwrap().to_vec().eq(&address)
+    output
+        .address()
+        .ok()
+        .map(|iter_address| iter_address.to_vec().eq(&address))
+        .unwrap_or_else(|| false)
 }
 
 #[pg_extern(immutable)]
