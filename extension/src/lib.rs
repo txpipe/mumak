@@ -197,7 +197,7 @@ fn tx_outputs(
     'static,
     (
         name!(output_index, i32),
-        name!(address, String),
+        name!(address, Option<String>),
         name!(lovelace, pgrx::AnyNumeric),
         name!(assets, pgrx::Json),
         name!(datum, pgrx::Json),
@@ -215,10 +215,7 @@ fn tx_outputs(
         .map(|(i, o)| {
             (
                 i as i32,
-                match o.address() {
-                    Ok(addr) => addr.to_string(),
-                    Err(_) => "ERROR PARSING ADDRESS".to_string(),
-                },
+                output_to_address_string(o),
                 AnyNumeric::from(o.lovelace_amount()),
                 pgrx::Json(
                     serde_json::to_value(
@@ -270,10 +267,7 @@ fn tx_outputs_json(tx_cbor: &[u8]) -> pgrx::JsonB {
         .map(|(i, o)| {
             serde_json::json!({
                 "output_index": i as i32,
-                "address": match o.address() {
-                    Ok(addr) => addr.to_string(),
-                    Err(_) => "ERROR PARSING ADDRESS".to_string(),
-                },
+                "address": output_to_address_string(o),
                 "lovelace": o.lovelace_amount().to_string(),
                 "assets": o.non_ada_assets()
                     .iter()
@@ -314,7 +308,7 @@ fn tx_addresses(tx_cbor: &[u8]) -> Vec<Option<String>> {
     let outputs_data = tx
         .outputs()
         .iter()
-        .map(|o| o.address().ok().map(|addr| addr.to_string()))
+        .map(|o| output_to_address_string(o))
         .collect::<Vec<_>>();
 
     outputs_data
@@ -362,10 +356,10 @@ fn tx_fee(tx_cbor: &[u8]) -> pgrx::AnyNumeric {
 }
 
 #[pg_extern(immutable)]
-fn tx_mint(tx_cbor: &[u8]) -> pgrx::JsonB {
+fn tx_mint(tx_cbor: &[u8]) -> Option<pgrx::JsonB> {
     let tx = match MultiEraTx::decode(tx_cbor) {
         Ok(x) => x,
-        Err(_) => return pgrx::JsonB(serde_json::json!(null)),
+        Err(_) => return None,
     };
 
     let mints = tx.mints();
@@ -384,7 +378,11 @@ fn tx_mint(tx_cbor: &[u8]) -> pgrx::JsonB {
         })
         .collect();
 
-    pgrx::JsonB(serde_json::json!(mint_data))
+    if mint_data.is_empty() {
+        return None;
+    }
+
+    Some(pgrx::JsonB(serde_json::json!(mint_data)))
 }
 
 #[pg_extern(immutable)]
@@ -615,7 +613,7 @@ fn address_payment_part(address: &[u8]) -> Vec<u8> {
 
     let payment_part = match address {
         Address::Shelley(a) => a.payment().to_vec(),
-        Address::Byron(a) => {
+        Address::Byron(_) => {
             vec![]
         }
         _ => return vec![],
@@ -633,7 +631,7 @@ fn address_stake_part(address: &[u8]) -> Vec<u8> {
 
     let stake_part = match address {
         Address::Shelley(a) => a.delegation().to_vec(),
-        Address::Byron(a) => {
+        Address::Byron(_) => {
             vec![]
         }
         _ => return vec![],
@@ -903,25 +901,19 @@ fn utxo_subject_amount(era: i32, utxo_cbor: &[u8], subject: &[u8]) -> pgrx::AnyN
 }
 
 #[pg_extern(immutable)]
-fn utxo_plutus_data(era: i32, utxo_cbor: &[u8]) -> pgrx::Json {
-    let era_enum = match pallas::ledger::traverse::Era::from_int(era) {
-        Some(x) => x,
-        None => return pgrx::Json(serde_json::json!(null)),
-    };
+fn utxo_plutus_data(era: i32, utxo_cbor: &[u8]) -> Option<pgrx::Json> {
+    let era_enum = pallas::ledger::traverse::Era::from_int(era)?;
 
-    let output = match MultiEraOutput::decode(era_enum, utxo_cbor) {
-        Ok(x) => x,
-        Err(_) => return pgrx::Json(serde_json::json!(null)),
-    };
+    let output = MultiEraOutput::decode(era_enum, utxo_cbor).ok()?;
 
-    match output.datum().unwrap() {
-        pallas::ledger::primitives::conway::PseudoDatumOption::Hash(_) => {
-            pgrx::Json(serde_json::json!(null))
+    output.datum().and_then(|datum_option| {
+        match datum_option {
+            pallas::ledger::primitives::conway::PseudoDatumOption::Hash(_) => None,
+            pallas::ledger::primitives::conway::PseudoDatumOption::Data(d) => {
+                Some(pgrx::Json(d.deref().to_json()))
+            }
         }
-        pallas::ledger::primitives::conway::PseudoDatumOption::Data(d) => {
-            pgrx::Json(d.unwrap().deref().to_json())
-        }
-    }
+    })
 }
 
 #[pg_extern(immutable)]
@@ -937,6 +929,21 @@ fn from_bech32(bech32: &str) -> Vec<u8> {
     match bech32::decode(bech32) {
         Ok((_, data, _)) => Vec::from_base32(&data).unwrap(),
         Err(_) => vec![],
+    }
+}
+
+fn output_to_address_string(output: &MultiEraOutput) -> Option<String> {
+    match output.address() {
+        Ok(addr) => {
+            let addr_str = addr.to_string();
+            // Truncate the address to 103 characters typical HEADER, PAYMENT PART and DELEGATION PART encoding in bech32
+            if addr_str.len() > 103 {
+                Some(addr_str[..103].to_string())
+            } else {
+                Some(addr_str)
+            }
+        }
+        Err(_) => None,
     }
 }
 
