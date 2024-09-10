@@ -20,8 +20,8 @@ pg_test = []
 # pallas = "0.21"
 pallas = { git = "https://github.com/txpipe/pallas.git" }
 pgrx = "=0.11.3"
-serde_json = "1.0.114"
-serde = "1.0.197"
+serde_json = "1.0.128"
+serde = "1.0.209"
 hex = "0.4.3"
 bech32 = "0.9.1"
 chrono = "0.4.38"
