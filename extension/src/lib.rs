@@ -150,9 +150,7 @@ fn block_slot_as_time(block_cbor: &[u8], network_id: i64) -> pgrx::Timestamp {
     let minute = naive_datetime.minute() as u8;
     let second = naive_datetime.second() as f64;
 
-    let timestamp = Timestamp::new(year, month, day, hour, minute, second).unwrap();
-
-    timestamp
+    Timestamp::new(year, month, day, hour, minute, second).unwrap()
 }
 
 #[pg_extern(immutable)]
@@ -202,18 +200,13 @@ fn tx_inputs(tx_cbor: &[u8]) -> Vec<Option<String>> {
         Err(_) => return vec![],
     };
 
-    let actual_inputs = if tx.is_valid() {
-        tx.inputs()
-    } else {
-        tx.collateral()
-    };
-
-    actual_inputs
+    tx.consumes()
         .iter()
         .map(|i| Some(format!("{}#{}", i.hash(), i.index())))
         .collect::<Vec<Option<String>>>()
 }
 
+#[allow(clippy::type_complexity)]
 #[pg_extern(immutable)]
 fn tx_outputs(
     tx_cbor: &[u8],
@@ -233,20 +226,12 @@ fn tx_outputs(
         Err(_) => return TableIterator::new(std::iter::empty()),
     };
 
-    let outputs = if tx.is_valid() {
-        tx.outputs()
-    } else {
-        tx.collateral_return()
-            .map(|collateral_return| vec![collateral_return])
-            .unwrap_or(vec![])
-    };
-
-    let outputs_data = outputs
+    let outputs_data = tx
+        .produces()
         .iter()
-        .enumerate()
         .map(|(i, o)| {
             (
-                i as i32,
+                *i as i32,
                 output_to_address_string(o),
                 AnyNumeric::from(o.lovelace_amount()),
                 pgrx::Json(
@@ -283,7 +268,7 @@ fn tx_outputs(
         })
         .collect::<Vec<_>>();
 
-    TableIterator::new(outputs_data.into_iter())
+    TableIterator::new(outputs_data)
 }
 
 #[pg_extern(immutable)]
@@ -294,12 +279,11 @@ fn tx_outputs_json(tx_cbor: &[u8]) -> pgrx::JsonB {
     };
 
     let outputs_data: Vec<serde_json::Value> = tx
-        .outputs()
+        .produces()
         .iter()
-        .enumerate()
         .map(|(i, o)| {
             serde_json::json!({
-                "output_index": i as i32,
+                "output_index": *i as i32,
                 "address": output_to_address_string(o),
                 "lovelace": o.lovelace_amount().to_string(),
                 "assets": o.non_ada_assets()
@@ -329,6 +313,14 @@ fn tx_outputs_json(tx_cbor: &[u8]) -> pgrx::JsonB {
         .collect();
 
     pgrx::JsonB(serde_json::json!(outputs_data))
+}
+
+#[pg_extern(immutable)]
+fn tx_is_valid(tx_cbor: &[u8]) -> bool {
+    match MultiEraTx::decode(tx_cbor) {
+        Ok(x) => x.is_valid(),
+        Err(_) => false,
+    }
 }
 
 #[pg_extern(immutable)]
@@ -507,7 +499,7 @@ fn tx_withdrawals(
             .collect::<Vec<_>>(),
         _ => vec![],
     };
-    TableIterator::new(withdrawals_data.into_iter())
+    TableIterator::new(withdrawals_data)
 }
 
 #[pg_extern(immutable)]
@@ -629,12 +621,10 @@ fn address_network_id(address: &[u8]) -> i64 {
         Err(_) => return -1,
     };
 
-    let network_id = match address.network() {
+    match address.network() {
         Some(n) => n.value() as i64,
         None => -1,
-    };
-
-    network_id
+    }
 }
 
 #[pg_extern(immutable)]
@@ -720,10 +710,7 @@ fn stake_part_to_bech32(stake_part_bytes: &[u8]) -> String {
         Err(_) => return String::new(),
     };
 
-    match stake_part.to_bech32() {
-        Ok(x) => x,
-        Err(_) => String::new(),
-    }
+    stake_part.to_bech32().unwrap_or_default()
 }
 
 #[pg_extern(immutable)]
@@ -866,7 +853,7 @@ fn utxo_asset_values(
         })
         .collect::<Vec<_>>();
 
-    TableIterator::new(asset_values.into_iter())
+    TableIterator::new(asset_values)
 }
 
 #[pg_extern(immutable)]
@@ -898,7 +885,7 @@ fn utxo_policy_id_asset_values(
         })
         .collect::<Vec<_>>();
 
-    TableIterator::new(asset_values.into_iter())
+    TableIterator::new(asset_values)
 }
 
 #[pg_extern(immutable)]
@@ -949,7 +936,7 @@ fn utxo_plutus_data(era: i32, utxo_cbor: &[u8]) -> Option<pgrx::Json> {
 
 #[pg_extern(immutable)]
 fn to_bech32(hash: &[u8], hrp: &str) -> String {
-    match bech32::encode(hrp, &hash.to_base32(), bech32::Variant::Bech32) {
+    match bech32::encode(hrp, hash.to_base32(), bech32::Variant::Bech32) {
         Ok(x) => x,
         Err(_) => "".to_string(),
     }
