@@ -202,13 +202,16 @@ fn tx_inputs(tx_cbor: &[u8]) -> Vec<Option<String>> {
         Err(_) => return vec![],
     };
 
-    let inputs_data = tx
-        .inputs()
+    let actual_inputs = if tx.is_valid() {
+        tx.inputs()
+    } else {
+        tx.collateral()
+    };
+
+    actual_inputs
         .iter()
         .map(|i| Some(format!("{}#{}", i.hash(), i.index())))
-        .collect::<Vec<Option<String>>>();
-
-    inputs_data
+        .collect::<Vec<Option<String>>>()
 }
 
 #[pg_extern(immutable)]
@@ -230,8 +233,15 @@ fn tx_outputs(
         Err(_) => return TableIterator::new(std::iter::empty()),
     };
 
-    let outputs_data = tx
-        .outputs()
+    let outputs = if tx.is_valid() {
+        tx.outputs()
+    } else {
+        tx.collateral_return()
+            .map(|collateral_return| vec![collateral_return])
+            .unwrap_or(vec![])
+    };
+
+    let outputs_data = outputs
         .iter()
         .enumerate()
         .map(|(i, o)| {
