@@ -36,6 +36,27 @@ fn block_tx_count(block_cbor: &[u8]) -> i32 {
 }
 
 #[pg_extern(immutable)]
+fn block_era(block_cbor: &[u8]) -> i32 {
+    let block = match MultiEraBlock::decode(block_cbor) {
+        Ok(x) => x,
+        Err(_) => return -1,
+    };
+
+    let block_era_as_u16: u16 = block.era().into();
+    block_era_as_u16.into()
+}
+
+#[pg_extern(immutable)]
+fn block_txs_cbor(block_cbor: &[u8]) -> Vec<Vec<u8>> {
+    let block = match MultiEraBlock::decode(block_cbor) {
+        Ok(x) => x,
+        Err(_) => return vec![],
+    };
+
+    block.txs().into_iter().map(|tx| tx.encode()).collect()
+}
+
+#[pg_extern(immutable)]
 fn block_number(block_cbor: &[u8]) -> i64 {
     let block = match MultiEraBlock::decode(block_cbor) {
         Ok(x) => x,
@@ -201,6 +222,7 @@ fn tx_outputs(
         name!(lovelace, pgrx::AnyNumeric),
         name!(assets, pgrx::Json),
         name!(datum, pgrx::Json),
+        name!(cbor, Vec<u8>),
     ),
 > {
     let tx = match MultiEraTx::decode(tx_cbor) {
@@ -246,6 +268,7 @@ fn tx_outputs(
                     },
                     None => pgrx::Json(serde_json::json!(null)),
                 },
+                o.encode(),
             )
         })
         .collect::<Vec<_>>();
@@ -906,12 +929,10 @@ fn utxo_plutus_data(era: i32, utxo_cbor: &[u8]) -> Option<pgrx::Json> {
 
     let output = MultiEraOutput::decode(era_enum, utxo_cbor).ok()?;
 
-    output.datum().and_then(|datum_option| {
-        match datum_option {
-            pallas::ledger::primitives::conway::PseudoDatumOption::Hash(_) => None,
-            pallas::ledger::primitives::conway::PseudoDatumOption::Data(d) => {
-                Some(pgrx::Json(d.deref().to_json()))
-            }
+    output.datum().and_then(|datum_option| match datum_option {
+        pallas::ledger::primitives::conway::PseudoDatumOption::Hash(_) => None,
+        pallas::ledger::primitives::conway::PseudoDatumOption::Data(d) => {
+            Some(pgrx::Json(d.deref().to_json()))
         }
     })
 }
