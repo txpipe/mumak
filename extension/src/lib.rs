@@ -233,10 +233,11 @@ fn tx_outputs(
             (
                 *i as i32,
                 output_to_address_string(o),
-                AnyNumeric::from(o.lovelace_amount()),
+                AnyNumeric::from(o.value().coin()),
                 pgrx::Json(
                     serde_json::to_value(
-                        o.non_ada_assets()
+                        o.value()
+                            .assets()
                             .iter()
                             .map(|asset| {
                                 let policy_id = hex::encode(asset.policy().as_ref());
@@ -285,8 +286,8 @@ fn tx_outputs_json(tx_cbor: &[u8]) -> pgrx::JsonB {
             serde_json::json!({
                 "output_index": *i as i32,
                 "address": output_to_address_string(o),
-                "lovelace": o.lovelace_amount().to_string(),
-                "assets": o.non_ada_assets()
+                "lovelace": o.value().coin().to_string(),
+                "assets": o.value().assets()
                     .iter()
                     .map(|asset| {
                         let policy_id = hex::encode(asset.policy().as_ref());
@@ -359,12 +360,7 @@ fn tx_lovelace(tx_cbor: &[u8]) -> pgrx::AnyNumeric {
         Err(_) => return AnyNumeric::from(0),
     };
 
-    AnyNumeric::from(
-        tx.outputs()
-            .iter()
-            .map(|o| o.lovelace_amount())
-            .sum::<u64>(),
-    )
+    AnyNumeric::from(tx.outputs().iter().map(|o| o.value().coin()).sum::<u64>())
 }
 
 #[pg_extern(immutable)]
@@ -424,12 +420,13 @@ fn tx_subject_amount_output(tx_cbor: &[u8], subject: &[u8]) -> pgrx::AnyNumeric 
         .outputs()
         .iter()
         .filter(|o| {
-            o.non_ada_assets().to_vec().iter().any(|a| {
+            o.value().assets().to_vec().iter().any(|a| {
                 a.policy().deref() == policy_id && a.assets().iter().any(|a| a.name() == asset_name)
             })
         })
         .map(|o| {
-            o.non_ada_assets()
+            o.value()
+                .assets()
                 .to_vec()
                 .iter()
                 .flat_map(|a| {
@@ -563,7 +560,8 @@ fn tx_has_policy_id_output(tx_cbor: &[u8], policy_id: &[u8]) -> bool {
     };
 
     tx.outputs().iter().any(|o| {
-        o.non_ada_assets()
+        o.value()
+            .assets()
             .to_vec()
             .iter()
             .any(|a| a.policy().deref().eq(&policy_id))
@@ -591,7 +589,7 @@ fn tx_has_subject_output(tx_cbor: &[u8], subject: &[u8]) -> bool {
     let (policy_id, asset_name) = subject.split_at(POLICY_ID_LEN);
 
     tx.outputs().iter().any(|o| {
-        o.non_ada_assets().to_vec().iter().any(|a| {
+        o.value().assets().to_vec().iter().any(|a| {
             a.policy().deref() == policy_id && a.assets().iter().any(|a| a.name() == asset_name)
         })
     })
@@ -741,7 +739,8 @@ fn utxo_has_policy_id(era: i32, utxo_cbor: &[u8], policy_id: &[u8]) -> bool {
     };
 
     output
-        .non_ada_assets()
+        .value()
+        .assets()
         .to_vec()
         .iter()
         .any(|a| a.policy().deref().eq(&policy_id))
@@ -778,7 +777,7 @@ fn utxo_lovelace(era: i32, utxo_cbor: &[u8]) -> pgrx::AnyNumeric {
         Err(_) => return AnyNumeric::from(0),
     };
 
-    AnyNumeric::from(output.lovelace_amount())
+    AnyNumeric::from(output.value().coin())
 }
 
 #[pg_extern(immutable)]
@@ -798,7 +797,8 @@ fn utxo_policy_id_asset_names(
     };
 
     let asset_names = output
-        .non_ada_assets()
+        .value()
+        .assets()
         .to_vec()
         .iter()
         .filter(|a| a.policy().deref().eq(&policy_id))
@@ -836,7 +836,8 @@ fn utxo_asset_values(
     };
 
     let asset_values = output
-        .non_ada_assets()
+        .value()
+        .assets()
         .to_vec()
         .iter()
         .flat_map(|a| {
@@ -873,7 +874,8 @@ fn utxo_policy_id_asset_values(
     };
 
     let asset_values = output
-        .non_ada_assets()
+        .value()
+        .assets()
         .to_vec()
         .iter()
         .filter(|a| a.policy().deref().eq(&policy_id))
@@ -904,7 +906,8 @@ fn utxo_subject_amount(era: i32, utxo_cbor: &[u8], subject: &[u8]) -> pgrx::AnyN
     let (policy_id, asset_name) = subject.split_at(POLICY_ID_LEN);
 
     let amount = output
-        .non_ada_assets()
+        .value()
+        .assets()
         .iter()
         .filter(|a| a.policy().deref() == policy_id)
         .flat_map(|a| {
